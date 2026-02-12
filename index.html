@@ -6,252 +6,157 @@
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
     <title>Face Tracking Avatar</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            overflow: hidden;
-            background: #000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        #container {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-        }
-
-        #cosmic-bg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 200vw;
-            height: 100vh;
-            background: url('cosmic-bg.png') repeat-x center center;
-            background-size: auto 150%;
-            animation: panSpace 120s linear infinite;
-            z-index: 0;
-        }
-
-        @keyframes panSpace {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-100vw); }
-        }
-
-        #three-canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-            position: relative;
-            z-index: 1;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        #container { width: 100vw; height: 100vh; position: relative; }
+        #three-canvas { width: 100%; height: 100%; display: block; position: relative; z-index: 1; }
 
         #webcam-preview {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 200px;
-            height: 150px;
-            border-radius: 12px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            object-fit: cover;
-            transform: scaleX(-1);
-            z-index: 100;
+            position: absolute; bottom: 20px; right: 20px;
+            width: 200px; height: 150px; border-radius: 12px;
+            border: 3px solid rgba(255,255,255,0.3);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            object-fit: cover; transform: scaleX(-1); z-index: 100;
+            opacity: 0; transition: opacity 0.5s;
         }
+        #webcam-preview.visible { opacity: 0.7; }
+        #webcam-preview.tracking { opacity: 0.3; }
 
         @media (max-width: 768px) {
-            #webcam-preview {
-                width: 120px;
-                height: 90px;
-                bottom: 10px;
-                right: 10px;
-            }
+            #webcam-preview { width: 120px; height: 90px; bottom: 10px; right: 10px; }
         }
 
         #loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(26, 26, 46, 0.95);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 200;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10,10,30,0.97); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 200;
             transition: opacity 0.5s ease;
         }
-
-        #loading-overlay.hidden {
-            opacity: 0;
-            pointer-events: none;
+        #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+        .loader-container {
+            position: relative; width: 100px; height: 100px;
+            display: flex; align-items: center; justify-content: center;
         }
-
         .loader {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #6c63ff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+            width: 80px; height: 80px;
+            border: 4px solid rgba(108,99,255,0.2); border-top-color: #6c63ff;
+            border-radius: 50%; animation: spin 1s linear infinite;
         }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .loader-inner {
+            position: absolute; width: 60px; height: 60px;
+            border: 4px solid rgba(136,187,255,0.2); border-bottom-color: #88bbff;
+            border-radius: 50%; animation: spin 1.5s linear infinite reverse;
         }
-
-        #loading-text {
-            color: #fff;
-            margin-top: 20px;
-            font-size: 16px;
-            opacity: 0.8;
+        .loader-pulse {
+            position: absolute; width: 100px; height: 100px;
+            border-radius: 50%; background: rgba(108,99,255,0.1);
+            animation: pulse 2s ease-in-out infinite;
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 0.2; } }
+        #loading-text { color: #fff; margin-top: 30px; font-size: 18px; font-weight: 500; text-align: center; }
+        #loading-subtext { color: rgba(255,255,255,0.5); margin-top: 8px; font-size: 14px; }
 
         #status {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #fff;
-            font-size: 14px;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px 16px;
-            border-radius: 8px;
-            z-index: 100;
+            position: absolute; top: 20px; left: 20px;
+            color: rgba(200,200,200,0.7); font-size: 14px;
+            background: rgba(0,0,0,0.5); padding: 10px 16px;
+            border-radius: 8px; z-index: 100; transition: color 0.3s, background 0.3s;
         }
+        #status.good { color: rgba(100,255,150,0.9); background: rgba(100,255,150,0.1); }
+        #status.warn { color: rgba(255,200,100,0.9); background: rgba(255,200,100,0.1); }
+        #status.bad { color: rgba(255,100,100,0.9); background: rgba(255,100,100,0.1); }
+
+        #face-placeholder {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            display: flex; flex-direction: column; align-items: center;
+            z-index: 60; pointer-events: none; opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        #face-placeholder.visible { opacity: 1; }
+        .placeholder-icon {
+            width: 120px; height: 120px; border: 3px dashed rgba(108,99,255,0.5);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            animation: placeholder-pulse 2s ease-in-out infinite;
+        }
+        .placeholder-icon svg { width: 60px; height: 60px; fill: rgba(108,99,255,0.5); }
+        .placeholder-text { color: rgba(255,255,255,0.6); margin-top: 20px; font-size: 16px; text-align: center; }
+        @keyframes placeholder-pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.05); opacity: 0.8; } }
 
         #error-message {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255, 82, 82, 0.9);
-            color: #fff;
-            padding: 20px 30px;
-            border-radius: 12px;
-            z-index: 250;
-            display: none;
-            text-align: center;
-        }
-
-        /* Hide gaussian splat library loading UI */
-        .loaderContainer, .loader-container, .progressContainer,
-        [class*="loader"], [class*="Loader"], [class*="progress"], [class*="Progress"],
-        [class*="loading"], [class*="Loading"], [class*="spinner"], [class*="Spinner"],
-        div[style*="position: absolute"][style*="center"],
-        .info-panel, .infoPanel, #info-panel, #infoPanel {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(255,82,82,0.9); color: #fff; padding: 20px 30px;
+            border-radius: 12px; z-index: 250; display: none; text-align: center;
         }
 
         #model-switcher {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            display: flex;
-            gap: 12px;
-            z-index: 100;
+            position: absolute; bottom: 20px; left: 20px;
+            display: flex; gap: 12px; z-index: 100;
         }
-
         .model-btn {
-            width: 70px;
-            height: 70px;
-            border-radius: 12px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            background: rgba(0, 0, 0, 0.5);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 12px;
-            font-weight: 500;
-            text-align: center;
-            padding: 8px;
+            width: 70px; height: 70px; border-radius: 12px;
+            border: 3px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.5);
+            cursor: pointer; transition: all 0.3s ease; display: flex;
+            align-items: center; justify-content: center; color: #fff;
+            font-size: 12px; font-weight: 500; text-align: center; padding: 8px;
         }
-
-        .model-btn:hover {
-            border-color: rgba(255, 255, 255, 0.6);
-            background: rgba(108, 99, 255, 0.3);
-            transform: scale(1.05);
+        .model-btn:hover { border-color: rgba(255,255,255,0.6); background: rgba(108,99,255,0.3); transform: scale(1.05); }
+        .model-btn.active { border-color: #6c63ff; background: rgba(108,99,255,0.5); box-shadow: 0 0 20px rgba(108,99,255,0.5); }
+        .model-btn.coming-soon {
+            border-style: dashed; border-color: rgba(255,255,255,0.2);
+            color: rgba(255,255,255,0.4); cursor: default; font-size: 11px;
         }
-
-        .model-btn.active {
-            border-color: #6c63ff;
-            background: rgba(108, 99, 255, 0.5);
-            box-shadow: 0 0 20px rgba(108, 99, 255, 0.5);
-        }
+        .model-btn.coming-soon:hover { transform: none; background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.2); }
 
         @media (max-width: 768px) {
-            #model-switcher {
-                bottom: 10px;
-                left: 10px;
-                gap: 8px;
-            }
+            #model-switcher { bottom: 10px; left: 10px; gap: 8px; }
+            .model-btn { width: 55px; height: 55px; font-size: 10px; }
+            .model-btn.coming-soon { display: none; }
+            #face-placeholder .placeholder-icon { width: 80px; height: 80px; }
+            #face-placeholder .placeholder-icon svg { width: 40px; height: 40px; }
+            #face-placeholder .placeholder-text { font-size: 14px; }
+            #status { font-size: 12px; padding: 8px 12px; top: 10px; left: 10px; }
+        }
 
-            .model-btn {
-                width: 55px;
-                height: 55px;
-                font-size: 10px;
-            }
+        @media (max-width: 480px) {
+            .bubble-text-top { font-size: clamp(24px, 5vw, 40px); top: 10px; }
+            .bubble-text-bottom { font-size: clamp(36px, 8vw, 80px); bottom: 70px; }
+            #webcam-preview { width: 90px; height: 68px; bottom: 8px; right: 8px; }
+            #model-switcher { bottom: 8px; left: 8px; gap: 6px; }
+            .model-btn { width: 48px; height: 48px; font-size: 9px; border-radius: 10px; }
         }
 
         .bubble-text {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            text-align: center;
-            z-index: 50;
-            pointer-events: none;
+            position: absolute; left: 0; width: 100%; text-align: center;
+            z-index: 50; pointer-events: none;
             font-family: 'Baloo 2', 'Arial Rounded MT Bold', sans-serif;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #fff;
-            -webkit-text-stroke: 3px rgba(218, 180, 90, 0.8);
+            font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em;
+            color: #fff; -webkit-text-stroke: 3px rgba(218,180,90,0.8);
             paint-order: stroke fill;
-            text-shadow:
-                0 0 10px rgba(218, 180, 90, 0.6),
-                0 0 30px rgba(218, 180, 90, 0.3),
-                0 4px 0 rgba(160, 120, 40, 0.5),
-                0 6px 10px rgba(0, 0, 0, 0.4);
+            text-shadow: 0 0 10px rgba(218,180,90,0.6), 0 0 30px rgba(218,180,90,0.3),
+                         0 4px 0 rgba(160,120,40,0.5), 0 6px 10px rgba(0,0,0,0.4);
         }
-
-        .bubble-text-top {
-            top: 30px;
-            font-size: clamp(32px, 6vw, 72px);
-        }
-
-        .bubble-text-bottom {
-            bottom: 10px;
-            font-size: clamp(48px, 10vw, 120px);
-        }
-
+        .bubble-text-top { top: 30px; font-size: clamp(32px, 6vw, 72px); }
+        .bubble-text-bottom { bottom: 10px; font-size: clamp(48px, 10vw, 120px); }
         @media (max-width: 768px) {
-            .bubble-text-top {
-                top: 15px;
-            }
-            .bubble-text-bottom {
-                bottom: 80px;
-            }
+            .bubble-text-top { top: 15px; }
+            .bubble-text-bottom { bottom: 80px; }
         }
     </style>
 </head>
 <body>
     <div id="container">
-        <div id="cosmic-bg"></div>
         <canvas id="three-canvas"></canvas>
         <video id="webcam-preview" autoplay playsinline></video>
 
         <div id="loading-overlay" class="hidden">
-            <div class="loader"></div>
+            <div class="loader-container">
+                <div class="loader-pulse"></div>
+                <div class="loader"></div>
+                <div class="loader-inner"></div>
+            </div>
             <div id="loading-text">Initializing...</div>
+            <div id="loading-subtext">Preparing face tracking</div>
         </div>
 
         <div class="bubble-text bubble-text-top">YOU ARE OUT OF THIS</div>
@@ -259,9 +164,17 @@
 
         <div id="status">Loading...</div>
 
+        <div id="face-placeholder">
+            <div class="placeholder-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+            </div>
+            <div class="placeholder-text">Move your face into frame</div>
+        </div>
+
         <div id="model-switcher">
             <button class="model-btn active" data-model="alien.glb">Alien 1</button>
             <button class="model-btn" data-model="alien2.glb">Alien 2</button>
+            <div class="model-btn coming-soon">+More</div>
         </div>
 
         <div id="error-message"></div>
@@ -279,30 +192,84 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { FaceLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs';
 
-        // DOM Elements
-        const container = document.getElementById('container');
+        // ── Anamorphic depth illusion config ──
+        const CONFIG = {
+            screenWidthCm: 52,
+            screenHeightCm: 32,
+            defaultDistanceCm: 55,
+            movementScale: 1.6,
+            smoothing: 0.65,
+            roomDepth: 80,
+            roomWidth: 80,
+            roomHeight: 50,
+            near: 1,
+            far: 500,
+            avgIpdCm: 6.3,
+            alienScale: 22,
+            alienDepth: -25,
+        };
+
+        const COLORS = {
+            dim: 0x1a2a55,
+            grid: 0x3366ff,
+            object: 0x4488ff,
+            frame: 0x6699ff,
+            pop: 0x88bbff,
+        };
+
+        // ── DOM elements ──
         const canvas = document.getElementById('three-canvas');
         const webcamPreview = document.getElementById('webcam-preview');
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingText = document.getElementById('loading-text');
+        const loadingSubtext = document.getElementById('loading-subtext');
         const statusElement = document.getElementById('status');
         const errorMessage = document.getElementById('error-message');
-        const modelButtons = document.querySelectorAll('.model-btn');
+        const modelButtons = document.querySelectorAll('.model-btn:not(.coming-soon)');
+        const facePlaceholder = document.getElementById('face-placeholder');
 
-        // Current model tracking
+        // ── Head tracking state ──
+        let headX = 0, headY = 0, headZ = CONFIG.defaultDistanceCm;
+        let smoothX = 0, smoothY = 0, smoothZ = CONFIG.defaultDistanceCm;
+        let tracking = false;
+        let lastFaceTime = 0;
+
+        // ── Three.js ──
+        let scene, camera, renderer;
+        let wireframeObjects = [];
+        let wireframeBasePositions = [];
+        let sharedLineMaterials = {};
+        let animationTime = 0;
+
+        // ── Avatar ──
         let currentModelUrl = 'alien.glb';
+        let avatarModel = null;
+        let headBone = null;
+        let morphTargetMeshes = [];
+        let morphTargetIndices = {};
+        let proceduralMeshes = [];
+        let modelBounds = { min: new THREE.Vector3(), max: new THREE.Vector3(), center: new THREE.Vector3() };
 
-        // Blendshape mappings
+        // ── Face tracking ──
+        let faceLandmarker = null;
+        let videoStream = null;
+        let lastVideoTime = -1;
+        let faceDetected = false;
+        let avatarVisible = false;
+        let faceDetectionCounter = 0;
+        const FACE_DETECT_THRESHOLD = 5;
+        const FACE_LOST_THRESHOLD = 15;
+        const smoothedBlendshapes = {};
+        const smoothedRotation = { pitch: 0, yaw: 0, roll: 0 };
+        const SMOOTHING_FACTOR = 0.5;
+
         const BLENDSHAPE_NAMES = [
-            // Eyes
             'eyeBlinkLeft', 'eyeBlinkRight', 'eyeSquintLeft', 'eyeSquintRight',
             'eyeWideLeft', 'eyeWideRight', 'eyeLookUpLeft', 'eyeLookUpRight',
             'eyeLookDownLeft', 'eyeLookDownRight', 'eyeLookInLeft', 'eyeLookInRight',
             'eyeLookOutLeft', 'eyeLookOutRight',
-            // Mouth
             'jawOpen', 'jawForward', 'jawLeft', 'jawRight',
             'mouthClose', 'mouthFunnel', 'mouthPucker', 'mouthLeft', 'mouthRight',
             'mouthSmileLeft', 'mouthSmileRight', 'mouthFrownLeft', 'mouthFrownRight',
@@ -310,102 +277,267 @@
             'mouthShrugLower', 'mouthShrugUpper', 'mouthPressLeft', 'mouthPressRight',
             'mouthLowerDownLeft', 'mouthLowerDownRight', 'mouthUpperUpLeft', 'mouthUpperUpRight',
             'mouthDimpleLeft', 'mouthDimpleRight',
-            // Brows
             'browDownLeft', 'browDownRight', 'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight',
-            // Cheeks/Nose
             'cheekPuff', 'cheekSquintLeft', 'cheekSquintRight', 'noseSneerLeft', 'noseSneerRight',
-            // Tongue
             'tongueOut'
         ];
 
-        // Three.js variables
-        let scene, camera, renderer, controls;
-        let avatarModel = null;
-        let headBone = null;
-        let morphTargetMeshes = [];
-        let morphTargetIndices = {};
+        // ═══════════════════════════════════════
+        //  WIREFRAME ROOM
+        // ═══════════════════════════════════════
 
-        // Procedural animation data
-        let proceduralMeshes = [];
-        let modelBounds = { min: new THREE.Vector3(), max: new THREE.Vector3(), center: new THREE.Vector3() };
+        function addLine(p1, p2, color, opacity) {
+            const key = `${color}-${opacity.toFixed(2)}`;
+            if (!sharedLineMaterials[key]) {
+                sharedLineMaterials[key] = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+            }
+            const geo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(p1[0], p1[1], p1[2]),
+                new THREE.Vector3(p2[0], p2[1], p2[2])
+            ]);
+            scene.add(new THREE.Line(geo, sharedLineMaterials[key]));
+        }
 
-        // Background is handled via CSS
+        function buildWireframeRoom() {
+            const rw = CONFIG.roomWidth / 2;
+            const rh = CONFIG.roomHeight / 2;
+            const rd = CONFIG.roomDepth;
+            const sw = CONFIG.screenWidthCm / 2;
+            const sh = CONFIG.screenHeightCm / 2;
+            const div = 16;
 
-        // MediaPipe variables
-        let faceLandmarker = null;
-        let videoStream = null;
-        let lastVideoTime = -1;
-        let faceDetected = false;
-        let avatarVisible = false;
+            // Floor (y = -rh)
+            for (let i = 0; i <= div; i++) {
+                const t = i / div;
+                const edge = (i === 0 || i === div || i === div / 2);
+                const x = -rw + t * rw * 2;
+                addLine([x, -rh, 0], [x, -rh, -rd], COLORS.dim, edge ? 0.6 : 0.2);
+                const z = -t * rd;
+                addLine([-rw, -rh, z], [rw, -rh, z], COLORS.dim, edge ? 0.6 : 0.2);
+            }
 
-        // Face detection smoothing (prevents glitching)
-        let faceDetectionCounter = 0;
-        const FACE_DETECT_THRESHOLD = 5;  // Frames needed to confirm face
-        const FACE_LOST_THRESHOLD = 15;   // Frames needed to confirm face lost
+            // Ceiling (y = +rh)
+            for (let i = 0; i <= div; i++) {
+                const t = i / div;
+                const edge = (i === 0 || i === div || i === div / 2);
+                const x = -rw + t * rw * 2;
+                addLine([x, rh, 0], [x, rh, -rd], COLORS.dim, edge ? 0.6 : 0.2);
+                const z = -t * rd;
+                addLine([-rw, rh, z], [rw, rh, z], COLORS.dim, edge ? 0.6 : 0.2);
+            }
 
-        // Smoothing
-        const smoothedBlendshapes = {};
-        const smoothedRotation = { pitch: 0, yaw: 0, roll: 0 };
-        const SMOOTHING_FACTOR = 0.5;
+            // Left wall (x = -rw)
+            for (let i = 0; i <= div; i++) {
+                const t = i / div;
+                const edge = (i === 0 || i === div || i === div / 2);
+                const y = -rh + t * rh * 2;
+                addLine([-rw, y, 0], [-rw, y, -rd], COLORS.dim, edge ? 0.35 : 0.08);
+                const z = -t * rd;
+                addLine([-rw, -rh, z], [-rw, rh, z], COLORS.dim, edge ? 0.35 : 0.08);
+            }
 
-        // Background is CSS-based — no JS needed
+            // Right wall (x = +rw)
+            for (let i = 0; i <= div; i++) {
+                const t = i / div;
+                const edge = (i === 0 || i === div || i === div / 2);
+                const y = -rh + t * rh * 2;
+                addLine([rw, y, 0], [rw, y, -rd], COLORS.dim, edge ? 0.35 : 0.08);
+                const z = -t * rd;
+                addLine([rw, -rh, z], [rw, rh, z], COLORS.dim, edge ? 0.35 : 0.08);
+            }
 
-        // Initialize Three.js scene
+            // Back wall (z = -rd)
+            for (let i = 0; i <= div; i++) {
+                const t = i / div;
+                const edge = (i === 0 || i === div || i === div / 2);
+                const x = -rw + t * rw * 2;
+                addLine([x, -rh, -rd], [x, rh, -rd], COLORS.grid, edge ? 0.6 : 0.2);
+                const y = -rh + t * rh * 2;
+                addLine([-rw, y, -rd], [rw, y, -rd], COLORS.grid, edge ? 0.6 : 0.2);
+            }
+
+            // Screen frame at z = 0
+            addLine([-sw, -sh, 0], [sw, -sh, 0], COLORS.frame, 1.0);
+            addLine([sw, -sh, 0], [sw, sh, 0], COLORS.frame, 1.0);
+            addLine([sw, sh, 0], [-sw, sh, 0], COLORS.frame, 1.0);
+            addLine([-sw, sh, 0], [-sw, -sh, 0], COLORS.frame, 1.0);
+
+            // Corner depth lines (screen frame corners → back wall corners)
+            addLine([-sw, -sh, 0], [-rw, -rh, -rd], COLORS.dim, 0.7);
+            addLine([sw, -sh, 0], [rw, -rh, -rd], COLORS.dim, 0.7);
+            addLine([-sw, sh, 0], [-rw, rh, -rd], COLORS.dim, 0.7);
+            addLine([sw, sh, 0], [rw, rh, -rd], COLORS.dim, 0.7);
+        }
+
+        function addWireframeObjects() {
+            // Deep planet (icosahedron)
+            const icoGeo = new THREE.IcosahedronGeometry(8, 1);
+            const ico = new THREE.LineSegments(
+                new THREE.EdgesGeometry(icoGeo),
+                new THREE.LineBasicMaterial({ color: COLORS.object, transparent: true, opacity: 0.3 })
+            );
+            ico.position.set(25, 5, -65);
+            scene.add(ico);
+            wireframeObjects.push(ico);
+            wireframeBasePositions.push({ x: 25, y: 5, z: -65, amplitude: 0.8, speed: 0.4 });
+
+            // Ring (torus)
+            const torusGeo = new THREE.TorusGeometry(10, 2, 8, 24);
+            const torus = new THREE.LineSegments(
+                new THREE.EdgesGeometry(torusGeo),
+                new THREE.LineBasicMaterial({ color: COLORS.object, transparent: true, opacity: 0.4 })
+            );
+            torus.position.set(-20, 10, -45);
+            torus.rotation.x = Math.PI * 0.3;
+            scene.add(torus);
+            wireframeObjects.push(torus);
+            wireframeBasePositions.push({ x: -20, y: 10, z: -45, amplitude: 1.2, speed: 0.3 });
+
+            // Crystal (octahedron)
+            const octaGeo = new THREE.OctahedronGeometry(6, 0);
+            const octa = new THREE.LineSegments(
+                new THREE.EdgesGeometry(octaGeo),
+                new THREE.LineBasicMaterial({ color: COLORS.object, transparent: true, opacity: 0.5 })
+            );
+            octa.position.set(15, -5, -35);
+            scene.add(octa);
+            wireframeObjects.push(octa);
+            wireframeBasePositions.push({ x: 15, y: -5, z: -35, amplitude: 1.0, speed: 0.5 });
+
+            // Small cube
+            const cubeGeo = new THREE.BoxGeometry(5, 5, 5);
+            const cube = new THREE.LineSegments(
+                new THREE.EdgesGeometry(cubeGeo),
+                new THREE.LineBasicMaterial({ color: COLORS.object, transparent: true, opacity: 0.5 })
+            );
+            cube.position.set(-28, -15, -15);
+            scene.add(cube);
+            wireframeObjects.push(cube);
+            wireframeBasePositions.push({ x: -28, y: -15, z: -15, amplitude: 0.6, speed: 0.6 });
+
+            // Pop-out star (in front of screen!)
+            const starGeo = new THREE.OctahedronGeometry(3, 0);
+            const star = new THREE.LineSegments(
+                new THREE.EdgesGeometry(starGeo),
+                new THREE.LineBasicMaterial({ color: COLORS.pop, transparent: true, opacity: 0.7 })
+            );
+            star.position.set(-18, 12, 4);
+            scene.add(star);
+            wireframeObjects.push(star);
+            wireframeBasePositions.push({ x: -18, y: 12, z: 4, amplitude: 0.5, speed: 0.7 });
+
+            // Another pop-out
+            const tetraGeo = new THREE.TetrahedronGeometry(2.5, 0);
+            const tetra = new THREE.LineSegments(
+                new THREE.EdgesGeometry(tetraGeo),
+                new THREE.LineBasicMaterial({ color: COLORS.pop, transparent: true, opacity: 0.6 })
+            );
+            tetra.position.set(20, -8, 3);
+            scene.add(tetra);
+            wireframeObjects.push(tetra);
+            wireframeBasePositions.push({ x: 20, y: -8, z: 3, amplitude: 0.5, speed: 0.65 });
+
+            // Deep dodecahedron
+            const dodecGeo = new THREE.DodecahedronGeometry(7, 0);
+            const dodec = new THREE.LineSegments(
+                new THREE.EdgesGeometry(dodecGeo),
+                new THREE.LineBasicMaterial({ color: COLORS.object, transparent: true, opacity: 0.25 })
+            );
+            dodec.position.set(-15, 15, -70);
+            scene.add(dodec);
+            wireframeObjects.push(dodec);
+            wireframeBasePositions.push({ x: -15, y: 15, z: -70, amplitude: 0.8, speed: 0.35 });
+        }
+
+        // ═══════════════════════════════════════
+        //  OFF-AXIS PROJECTION
+        // ═══════════════════════════════════════
+
+        function updateOffAxisProjection() {
+            smoothX += (headX - smoothX) * (1 - CONFIG.smoothing);
+            smoothY += (headY - smoothY) * (1 - CONFIG.smoothing);
+            smoothZ += (headZ - smoothZ) * (1 - CONFIG.smoothing);
+
+            const ex = smoothX * CONFIG.movementScale;
+            const ey = smoothY * CONFIG.movementScale;
+            const ez = Math.max(smoothZ, 20);
+
+            const sw = CONFIG.screenWidthCm / 2;
+            const sh = CONFIG.screenHeightCm / 2;
+
+            const nearOverEz = CONFIG.near / ez;
+            const left   = (-sw - ex) * nearOverEz;
+            const right  = ( sw - ex) * nearOverEz;
+            const bottom = (-sh - ey) * nearOverEz;
+            const top    = ( sh - ey) * nearOverEz;
+
+            // Three.js order: left, right, top, bottom, near, far
+            camera.projectionMatrix.makePerspective(left, right, top, bottom, CONFIG.near, CONFIG.far);
+            camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+
+            // Move camera — do NOT call lookAt(), the asymmetric frustum handles it
+            camera.position.set(ex, ey, ez);
+        }
+
+        // ═══════════════════════════════════════
+        //  SCENE INIT
+        // ═══════════════════════════════════════
+
         function initThreeJS() {
             scene = new THREE.Scene();
 
-            // Camera
-            camera = new THREE.PerspectiveCamera(
-                45,
-                window.innerWidth / window.innerHeight,
-                0.1,
-                1000
-            );
-            camera.position.set(0, 0.5, 3);
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, CONFIG.near, CONFIG.far);
+            camera.position.set(0, 0, CONFIG.defaultDistanceCm);
 
-            // Renderer
-            renderer = new THREE.WebGLRenderer({
-                canvas: canvas,
-                antialias: true,
-                alpha: true
-            });
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+            renderer.setClearColor(0x000000, 1);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-            // Controls
-            controls = new OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.target.set(0, 0.5, 0);
-            controls.update();
+            // Lighting for alien models
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-            // Lighting for avatar
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-
-            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
             mainLight.position.set(5, 10, 7.5);
             scene.add(mainLight);
 
-            const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
+            const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
             fillLight.position.set(-5, 5, -5);
             scene.add(fillLight);
 
-            // Handle resize
-            window.addEventListener('resize', onWindowResize);
+            const rimLight = new THREE.DirectionalLight(0x6666ff, 0.6);
+            rimLight.position.set(0, 0, -10);
+            scene.add(rimLight);
+
+            buildWireframeRoom();
+            addWireframeObjects();
+
+            window.addEventListener('resize', () => {
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
         }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        // ═══════════════════════════════════════
+        //  MOUSE FALLBACK
+        // ═══════════════════════════════════════
+
+        function enableMouseFallback() {
+            document.addEventListener('mousemove', (e) => {
+                if (!tracking) {
+                    headX = (e.clientX / window.innerWidth - 0.5) * CONFIG.screenWidthCm;
+                    headY = -(e.clientY / window.innerHeight - 0.5) * CONFIG.screenHeightCm;
+                    headZ = CONFIG.defaultDistanceCm;
+                }
+            });
         }
 
-        // Load GLB model
+        // ═══════════════════════════════════════
+        //  AVATAR LOADING
+        // ═══════════════════════════════════════
+
         async function loadGLBModel(fileOrUrl) {
-            showLoading('Loading avatar model...');
-
+            showLoading('Loading Avatar', 'Preparing your alien companion...');
             const loader = new GLTFLoader();
             const isFile = fileOrUrl instanceof File;
             const url = isFile ? URL.createObjectURL(fileOrUrl) : fileOrUrl;
@@ -415,42 +547,28 @@
                     loader.load(url, resolve, undefined, reject);
                 });
 
-                // Remove previous model
-                if (avatarModel) {
-                    scene.remove(avatarModel);
-                }
-
+                if (avatarModel) scene.remove(avatarModel);
                 avatarModel = gltf.scene;
                 scene.add(avatarModel);
 
-                // Reset arrays
                 morphTargetMeshes = [];
                 morphTargetIndices = {};
 
-                // Find meshes with morph targets and head bone
                 avatarModel.traverse((child) => {
                     if (child.isMesh && child.morphTargetInfluences && child.morphTargetDictionary) {
                         morphTargetMeshes.push(child);
-
-                        // Map blendshape names to morph target indices
                         for (const name of BLENDSHAPE_NAMES) {
                             if (child.morphTargetDictionary[name] !== undefined) {
-                                if (!morphTargetIndices[name]) {
-                                    morphTargetIndices[name] = [];
-                                }
+                                if (!morphTargetIndices[name]) morphTargetIndices[name] = [];
                                 morphTargetIndices[name].push({
                                     mesh: child,
                                     index: child.morphTargetDictionary[name]
                                 });
                             }
                         }
-
-                        // Enable shadows
                         child.castShadow = true;
                         child.receiveShadow = true;
                     }
-
-                    // Find head bone (common naming conventions)
                     if (child.isBone) {
                         const boneName = child.name.toLowerCase();
                         if (boneName.includes('head') && !boneName.includes('headtop') && !boneName.includes('end')) {
@@ -459,53 +577,37 @@
                     }
                 });
 
-                // If no head bone found, use the model itself for rotation
-                if (!headBone) {
-                    headBone = avatarModel;
-                    console.log('No head bone found, using model root for rotation');
-                }
+                if (!headBone) headBone = avatarModel;
 
-                // Center and scale model
+                // Scale and position alien inside wireframe room
                 const box = new THREE.Box3().setFromObject(avatarModel);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
-
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 2 / maxDim;
+                const scale = CONFIG.alienScale / maxDim;
+
                 avatarModel.scale.setScalar(scale);
-
                 avatarModel.position.x = -center.x * scale;
-                avatarModel.position.y = -box.min.y * scale;
-                avatarModel.position.z = -center.z * scale;
-
-                // Update camera target
-                controls.target.set(0, size.y * scale * 0.5, 0);
-                controls.update();
+                avatarModel.position.y = -center.y * scale;
+                avatarModel.position.z = -center.z * scale + CONFIG.alienDepth;
 
                 const morphCount = Object.keys(morphTargetIndices).length;
-
-                // Setup procedural animation if no blendshapes
                 if (morphCount === 0) {
                     setupProceduralAnimation();
                 } else {
-                    proceduralMeshes = []; // Clear procedural if we have real blendshapes
-                    updateStatus(`Model loaded: ${morphCount} blendshapes mapped${headBone ? ', head bone found' : ''}`);
+                    proceduralMeshes = [];
                 }
 
-                // Start with avatar hidden until face is detected
                 avatarModel.visible = false;
                 avatarVisible = false;
                 faceDetected = false;
+                showFacePlaceholder(true);
                 updateStatus('Move into frame to activate avatar');
+                statusElement.className = '';
 
                 hideLoading();
-
                 if (isFile) URL.revokeObjectURL(url);
-
-                // Start face tracking if not already started
-                if (faceLandmarker && !videoStream) {
-                    await startWebcam();
-                }
+                if (faceLandmarker && !videoStream) await startWebcam();
 
             } catch (error) {
                 console.error('Error loading model:', error);
@@ -515,15 +617,16 @@
             }
         }
 
-        // Initialize MediaPipe FaceLandmarker
-        async function initFaceLandmarker() {
-            showLoading('Initializing face tracking...');
+        // ═══════════════════════════════════════
+        //  MEDIAPIPE FACE TRACKING
+        // ═══════════════════════════════════════
 
+        async function initFaceLandmarker() {
+            showLoading('Initializing Face Tracking', 'Setting up AI-powered detection...');
             try {
                 const filesetResolver = await FilesetResolver.forVisionTasks(
                     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm'
                 );
-
                 faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
                     baseOptions: {
                         modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
@@ -534,66 +637,53 @@
                     runningMode: 'VIDEO',
                     numFaces: 1
                 });
-
                 updateStatus('Face tracking ready');
+                statusElement.className = '';
                 hideLoading();
-
             } catch (error) {
                 console.error('Error initializing FaceLandmarker:', error);
-                showError('Failed to initialize face tracking: ' + error.message);
+                showError('Face tracking unavailable — using mouse fallback');
                 hideLoading();
             }
         }
 
-        // Start webcam
         async function startWebcam() {
             try {
                 videoStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
-                        facingMode: 'user'
-                    }
+                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
                 });
-
                 webcamPreview.srcObject = videoStream;
                 await webcamPreview.play();
-
+                webcamPreview.className = 'visible';
                 updateStatus('Face tracking active');
-
+                statusElement.className = 'good';
             } catch (error) {
                 console.error('Error starting webcam:', error);
-                showError('Failed to access webcam: ' + error.message);
+                showError('Webcam unavailable — using mouse fallback');
             }
         }
 
-        // Process face tracking
+        // ═══════════════════════════════════════
+        //  FACE PROCESSING
+        // ═══════════════════════════════════════
+
         function processFaceTracking() {
-            if (!faceLandmarker || !webcamPreview.videoWidth) {
-                return;
-            }
+            if (!faceLandmarker || !webcamPreview.videoWidth) return;
 
             const currentTime = webcamPreview.currentTime;
-            if (currentTime === lastVideoTime) {
-                return;
-            }
+            if (currentTime === lastVideoTime) return;
             lastVideoTime = currentTime;
 
             try {
                 const results = faceLandmarker.detectForVideo(webcamPreview, performance.now());
-
-                // Check if face is detected with smoothing to prevent glitching
                 const hasFace = results.faceBlendshapes && results.faceBlendshapes.length > 0;
 
                 if (hasFace) {
-                    // Face detected - increment counter
                     faceDetectionCounter = Math.min(faceDetectionCounter + 2, FACE_LOST_THRESHOLD);
                 } else {
-                    // No face - decrement counter
                     faceDetectionCounter = Math.max(faceDetectionCounter - 1, 0);
                 }
 
-                // Update visibility based on smoothed detection
                 const shouldBeVisible = faceDetectionCounter >= FACE_DETECT_THRESHOLD;
 
                 if (shouldBeVisible && !faceDetected) {
@@ -604,17 +694,21 @@
                     updateAvatarVisibility(false);
                 }
 
-                if (!faceDetected || !avatarModel) {
-                    return;
+                // Extract head position for off-axis projection
+                if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+                    extractHeadPosition(results.faceLandmarks[0]);
+                } else if (Date.now() - lastFaceTime > 3000) {
+                    tracking = false;
+                    updateStatus('No face detected — move into frame');
+                    statusElement.className = 'bad';
+                    webcamPreview.className = 'visible';
                 }
+
+                if (!faceDetected || !avatarModel) return;
 
                 if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
                     applyBlendshapes(results.faceBlendshapes[0].categories);
-
-                    // Apply procedural deformation if no real blendshapes
-                    if (proceduralMeshes.length > 0) {
-                        applyProceduralDeformation();
-                    }
+                    if (proceduralMeshes.length > 0) applyProceduralDeformation();
                 }
 
                 if (results.facialTransformationMatrixes && results.facialTransformationMatrixes.length > 0) {
@@ -626,14 +720,63 @@
             }
         }
 
-        // Show/hide avatar based on face detection
+        function extractHeadPosition(landmarks) {
+            lastFaceTime = Date.now();
+            tracking = true;
+
+            let midX, midY;
+
+            if (landmarks.length > 473) {
+                const leftIris = landmarks[468];
+                const rightIris = landmarks[473];
+                midX = (leftIris.x + rightIris.x) / 2;
+                midY = (leftIris.y + rightIris.y) / 2;
+
+                headX = -(midX - 0.5) * CONFIG.screenWidthCm;
+                headY = -(midY - 0.5) * CONFIG.screenHeightCm;
+
+                const ipdNormalized = Math.sqrt(
+                    Math.pow(leftIris.x - rightIris.x, 2) +
+                    Math.pow(leftIris.y - rightIris.y, 2)
+                );
+                headZ = Math.max(30, Math.min(100,
+                    (CONFIG.avgIpdCm * 5.5) / ipdNormalized
+                ));
+            } else {
+                const nose = landmarks[1];
+                midX = nose.x;
+                midY = nose.y;
+                headX = -(midX - 0.5) * CONFIG.screenWidthCm;
+                headY = -(midY - 0.5) * CONFIG.screenHeightCm;
+                headZ = CONFIG.defaultDistanceCm;
+            }
+
+            const edgeMargin = 0.15;
+            const nearEdge = midX < edgeMargin || midX > (1 - edgeMargin) ||
+                             midY < edgeMargin || midY > (1 - edgeMargin);
+
+            if (nearEdge) {
+                updateStatus('Tracking (center face for best results)');
+                statusElement.className = 'warn';
+                webcamPreview.className = 'visible';
+            } else {
+                updateStatus('Tracking');
+                statusElement.className = 'good';
+                webcamPreview.className = 'tracking';
+            }
+        }
+
+        // ═══════════════════════════════════════
+        //  AVATAR VISIBILITY
+        // ═══════════════════════════════════════
+
         function updateAvatarVisibility(visible) {
             if (!avatarModel) return;
 
             if (visible && !avatarVisible) {
-                // Fade in
                 avatarVisible = true;
                 avatarModel.visible = true;
+                showFacePlaceholder(false);
                 avatarModel.traverse((child) => {
                     if (child.isMesh && child.material) {
                         child.material.transparent = true;
@@ -641,110 +784,82 @@
                     }
                 });
                 fadeAvatar(0, 1, 300);
-                updateStatus('Face detected - Avatar active');
             } else if (!visible && avatarVisible) {
-                // Fade out
                 fadeAvatar(1, 0, 300).then(() => {
                     avatarVisible = false;
                     if (avatarModel) avatarModel.visible = false;
+                    showFacePlaceholder(true);
                 });
-                updateStatus('No face detected - Move into frame');
             }
         }
 
-        // Smooth fade animation for avatar
         function fadeAvatar(from, to, duration) {
             return new Promise((resolve) => {
                 const startTime = performance.now();
-
-                function animate() {
+                function tick() {
                     const elapsed = performance.now() - startTime;
                     const progress = Math.min(elapsed / duration, 1);
-                    const eased = progress * (2 - progress); // Ease out quad
+                    const eased = progress * (2 - progress);
                     const opacity = from + (to - from) * eased;
-
                     if (avatarModel) {
                         avatarModel.traverse((child) => {
-                            if (child.isMesh && child.material) {
-                                child.material.opacity = opacity;
-                            }
+                            if (child.isMesh && child.material) child.material.opacity = opacity;
                         });
                     }
-
-                    if (progress < 1) {
-                        requestAnimationFrame(animate);
-                    } else {
-                        resolve();
-                    }
+                    if (progress < 1) requestAnimationFrame(tick);
+                    else resolve();
                 }
-
-                animate();
+                tick();
             });
         }
 
-        // Apply blendshapes to avatar
+        // ═══════════════════════════════════════
+        //  BLENDSHAPES & HEAD ROTATION
+        // ═══════════════════════════════════════
+
         function applyBlendshapes(categories) {
-            for (const category of categories) {
-                const name = category.categoryName;
-                const score = category.score;
+            for (const cat of categories) {
+                const name = cat.categoryName;
+                const score = cat.score;
+                if (smoothedBlendshapes[name] === undefined) smoothedBlendshapes[name] = score;
+                else smoothedBlendshapes[name] = smoothedBlendshapes[name] * (1 - SMOOTHING_FACTOR) + score * SMOOTHING_FACTOR;
 
-                // Smooth the value
-                if (smoothedBlendshapes[name] === undefined) {
-                    smoothedBlendshapes[name] = score;
-                } else {
-                    smoothedBlendshapes[name] = smoothedBlendshapes[name] * (1 - SMOOTHING_FACTOR) + score * SMOOTHING_FACTOR;
-                }
-
-                // Apply to morph targets
                 if (morphTargetIndices[name]) {
-                    for (const target of morphTargetIndices[name]) {
-                        target.mesh.morphTargetInfluences[target.index] = smoothedBlendshapes[name];
+                    for (const t of morphTargetIndices[name]) {
+                        t.mesh.morphTargetInfluences[t.index] = smoothedBlendshapes[name];
                     }
                 }
             }
         }
 
-        // Apply head rotation from transformation matrix
         function applyHeadRotation(matrix) {
             if (!headBone) return;
-
-            // Extract rotation from the 4x4 transformation matrix
-            const data = matrix.data;
-
-            // Create a Three.js Matrix4 from the flat array
             const mat4 = new THREE.Matrix4();
-            mat4.fromArray(data);
-
-            // Extract Euler angles
+            mat4.fromArray(matrix.data);
             const euler = new THREE.Euler();
             euler.setFromRotationMatrix(mat4, 'XYZ');
 
-            // Smooth the rotation
             smoothedRotation.pitch = smoothedRotation.pitch * (1 - SMOOTHING_FACTOR) + euler.x * SMOOTHING_FACTOR;
             smoothedRotation.yaw = smoothedRotation.yaw * (1 - SMOOTHING_FACTOR) + euler.y * SMOOTHING_FACTOR;
             smoothedRotation.roll = smoothedRotation.roll * (1 - SMOOTHING_FACTOR) + euler.z * SMOOTHING_FACTOR;
 
-            // Apply rotation to head bone (inverted for mirroring effect)
-            // Store original rotation if not stored
             if (!headBone.userData.originalRotation) {
                 headBone.userData.originalRotation = headBone.rotation.clone();
             }
-
-            const original = headBone.userData.originalRotation;
-
-            // Apply rotations - adjust signs for natural mirroring
-            headBone.rotation.x = original.x + smoothedRotation.pitch * 0.7;
-            headBone.rotation.y = original.y - smoothedRotation.yaw * 0.8;
-            headBone.rotation.z = original.z - smoothedRotation.roll * 0.4;
+            const orig = headBone.userData.originalRotation;
+            headBone.rotation.x = orig.x + smoothedRotation.pitch * 0.7;
+            headBone.rotation.y = orig.y - smoothedRotation.yaw * 0.8;
+            headBone.rotation.z = orig.z - smoothedRotation.roll * 0.4;
         }
 
-        // Setup procedural animation for meshes without blendshapes
+        // ═══════════════════════════════════════
+        //  PROCEDURAL ANIMATION (fallback)
+        // ═══════════════════════════════════════
+
         function setupProceduralAnimation() {
             proceduralMeshes = [];
-
             if (!avatarModel) return;
 
-            // Calculate model bounds
             const box = new THREE.Box3().setFromObject(avatarModel);
             modelBounds.min.copy(box.min);
             modelBounds.max.copy(box.max);
@@ -754,27 +869,15 @@
                 if (child.isMesh && child.geometry) {
                     const geometry = child.geometry;
                     const position = geometry.attributes.position;
-
                     if (!position) return;
 
-                    // Store original positions
                     const originalPositions = new Float32Array(position.array.length);
                     originalPositions.set(position.array);
 
-                    // Analyze vertices to identify facial regions
                     const vertexCount = position.count;
-                    const jawIndices = [];
-                    const upperFaceIndices = [];
-                    const leftEyeIndices = [];
-                    const rightEyeIndices = [];
-                    const mouthIndices = [];
+                    const jawIndices = [], upperFaceIndices = [];
+                    const leftEyeIndices = [], rightEyeIndices = [], mouthIndices = [];
 
-                    // Get world matrix for accurate position calculation
-                    child.updateWorldMatrix(true, false);
-                    const worldMatrix = child.matrixWorld;
-                    const tempVec = new THREE.Vector3();
-
-                    // Calculate normalized bounds for this mesh
                     const meshBox = new THREE.Box3().setFromBufferAttribute(position);
                     const meshHeight = meshBox.max.y - meshBox.min.y;
                     const meshWidth = meshBox.max.x - meshBox.min.x;
@@ -782,64 +885,34 @@
                     meshBox.getCenter(meshCenter);
 
                     for (let i = 0; i < vertexCount; i++) {
-                        const x = position.getX(i);
                         const y = position.getY(i);
-                        const z = position.getZ(i);
+                        const x = position.getX(i);
+                        const normalizedY = (y - meshBox.min.y) / meshHeight;
+                        const normalizedX = (x - meshCenter.x) / (meshWidth / 2);
 
-                        // Normalize position relative to mesh bounds
-                        const normalizedY = (y - meshBox.min.y) / meshHeight; // 0 = bottom, 1 = top
-                        const normalizedX = (x - meshCenter.x) / (meshWidth / 2); // -1 = left, 1 = right
-
-                        // Jaw region: lower 35% of mesh, front-facing (positive Z or close to front)
                         if (normalizedY < 0.35) {
                             jawIndices.push(i);
-                            if (normalizedY < 0.25) {
-                                mouthIndices.push(i);
-                            }
+                            if (normalizedY < 0.25) mouthIndices.push(i);
                         }
-
-                        // Upper face: top 30%
-                        if (normalizedY > 0.7) {
-                            upperFaceIndices.push(i);
-                        }
-
-                        // Eye regions: middle-upper area, split left/right
+                        if (normalizedY > 0.7) upperFaceIndices.push(i);
                         if (normalizedY > 0.45 && normalizedY < 0.75) {
-                            if (normalizedX < -0.15) {
-                                leftEyeIndices.push(i);
-                            } else if (normalizedX > 0.15) {
-                                rightEyeIndices.push(i);
-                            }
+                            if (normalizedX < -0.15) leftEyeIndices.push(i);
+                            else if (normalizedX > 0.15) rightEyeIndices.push(i);
                         }
                     }
 
                     proceduralMeshes.push({
-                        mesh: child,
-                        geometry: geometry,
-                        originalPositions: originalPositions,
-                        jawIndices: jawIndices,
-                        upperFaceIndices: upperFaceIndices,
-                        leftEyeIndices: leftEyeIndices,
-                        rightEyeIndices: rightEyeIndices,
-                        mouthIndices: mouthIndices,
-                        meshBox: meshBox,
-                        meshHeight: meshHeight
+                        mesh: child, geometry, originalPositions,
+                        jawIndices, upperFaceIndices, leftEyeIndices,
+                        rightEyeIndices, mouthIndices, meshBox, meshHeight
                     });
-
-                    console.log(`Procedural setup for ${child.name}: jaw=${jawIndices.length}, mouth=${mouthIndices.length}, leftEye=${leftEyeIndices.length}, rightEye=${rightEyeIndices.length}, upperFace=${upperFaceIndices.length}`);
                 }
             });
-
-            if (proceduralMeshes.length > 0) {
-                updateStatus(`Procedural animation enabled for ${proceduralMeshes.length} mesh(es)`);
-            }
         }
 
-        // Apply procedural deformation based on face tracking
         function applyProceduralDeformation() {
             if (proceduralMeshes.length === 0) return;
 
-            // Get blendshape values (smoothed)
             const jawOpen = smoothedBlendshapes['jawOpen'] || 0;
             const mouthSmileLeft = smoothedBlendshapes['mouthSmileLeft'] || 0;
             const mouthSmileRight = smoothedBlendshapes['mouthSmileRight'] || 0;
@@ -854,7 +927,6 @@
                 const original = data.originalPositions;
                 const height = data.meshHeight;
 
-                // Deformation strengths (adjust these for your models)
                 const jawStrength = height * 0.15;
                 const eyeStrength = height * 0.03;
                 const browStrength = height * 0.04;
@@ -862,92 +934,104 @@
                 const puckerStrength = height * 0.03;
                 const puffStrength = height * 0.04;
 
-                // Apply jaw open - move lower vertices down and slightly back
                 for (const i of data.jawIndices) {
                     const origY = original[i * 3 + 1];
                     const origZ = original[i * 3 + 2];
-
-                    // Calculate weight based on how low the vertex is
                     const normalizedY = (origY - data.meshBox.min.y) / height;
                     const weight = Math.max(0, 1 - normalizedY / 0.35);
-
                     position.setY(i, origY - jawOpen * jawStrength * weight);
                     position.setZ(i, origZ - jawOpen * jawStrength * 0.3 * weight);
                 }
 
-                // Apply mouth deformations
                 for (const i of data.mouthIndices) {
                     const origX = original[i * 3];
                     const origY = original[i * 3 + 1];
                     const origZ = original[i * 3 + 2];
-
                     const meshCenterX = data.meshBox.min.x + (data.meshBox.max.x - data.meshBox.min.x) / 2;
-
-                    // Smile: pull corners up and out
                     const smileAmount = (mouthSmileLeft + mouthSmileRight) / 2;
                     const sideWeight = Math.abs(origX - meshCenterX) / ((data.meshBox.max.x - data.meshBox.min.x) / 2);
                     position.setY(i, position.getY(i) + smileAmount * smileStrength * sideWeight);
-
-                    // Pucker: move mouth vertices forward and inward
                     const puckerInward = (origX - meshCenterX) * mouthPucker * 0.3;
                     position.setX(i, origX - puckerInward);
                     position.setZ(i, position.getZ(i) + mouthPucker * puckerStrength);
                 }
 
-                // Apply eye blinks - move upper eyelid area down
                 for (const i of data.leftEyeIndices) {
-                    const origY = original[i * 3 + 1];
-                    position.setY(i, origY - eyeBlinkLeft * eyeStrength);
+                    position.setY(i, original[i * 3 + 1] - eyeBlinkLeft * eyeStrength);
                 }
-
                 for (const i of data.rightEyeIndices) {
-                    const origY = original[i * 3 + 1];
-                    position.setY(i, origY - eyeBlinkRight * eyeStrength);
+                    position.setY(i, original[i * 3 + 1] - eyeBlinkRight * eyeStrength);
                 }
-
-                // Apply brow raise
                 for (const i of data.upperFaceIndices) {
-                    const origY = original[i * 3 + 1];
-                    position.setY(i, origY + browInnerUp * browStrength);
+                    position.setY(i, original[i * 3 + 1] + browInnerUp * browStrength);
                 }
 
-                // Apply cheek puff - expand cheek area outward
                 if (cheekPuff > 0.1) {
                     for (const i of data.jawIndices) {
                         const origX = original[i * 3];
                         const origZ = original[i * 3 + 2];
                         const meshCenterX = data.meshBox.min.x + (data.meshBox.max.x - data.meshBox.min.x) / 2;
-
                         const side = origX > meshCenterX ? 1 : -1;
                         position.setX(i, origX + side * cheekPuff * puffStrength);
                         position.setZ(i, position.getZ(i) + cheekPuff * puffStrength * 0.5);
                     }
                 }
 
-                // Mark geometry for update
                 position.needsUpdate = true;
                 data.geometry.computeVertexNormals();
             }
         }
 
-        // Animation loop
+        // ═══════════════════════════════════════
+        //  ANIMATION LOOP
+        // ═══════════════════════════════════════
+
         function animate() {
             requestAnimationFrame(animate);
+            animationTime += 0.016; // ~60fps
 
+            updateOffAxisProjection();
             processFaceTracking();
-            controls.update();
+
+            // Animate wireframe objects with rotation and floating
+            for (let i = 0; i < wireframeObjects.length; i++) {
+                const obj = wireframeObjects[i];
+                const base = wireframeBasePositions[i];
+
+                // Rotation
+                obj.rotation.x += 0.002 + i * 0.0005;
+                obj.rotation.y += 0.003 + i * 0.0003;
+
+                // Floating/bobbing motion
+                const floatOffset = Math.sin(animationTime * base.speed + i * 1.5) * base.amplitude;
+                const swayOffset = Math.cos(animationTime * base.speed * 0.5 + i) * base.amplitude * 0.3;
+                obj.position.y = base.y + floatOffset;
+                obj.position.x = base.x + swayOffset;
+            }
 
             renderer.render(scene, camera);
         }
 
-        // UI Helpers
-        function showLoading(text) {
+        // ═══════════════════════════════════════
+        //  UI HELPERS
+        // ═══════════════════════════════════════
+
+        function showLoading(text, subtext = '') {
             loadingText.textContent = text;
+            loadingSubtext.textContent = subtext;
             loadingOverlay.classList.remove('hidden');
         }
 
         function hideLoading() {
             loadingOverlay.classList.add('hidden');
+        }
+
+        function showFacePlaceholder(show) {
+            if (show) {
+                facePlaceholder.classList.add('visible');
+            } else {
+                facePlaceholder.classList.remove('visible');
+            }
         }
 
         function updateStatus(text) {
@@ -957,82 +1041,40 @@
         function showError(text) {
             errorMessage.textContent = text;
             errorMessage.style.display = 'block';
-            setTimeout(() => {
-                errorMessage.style.display = 'none';
-            }, 5000);
+            setTimeout(() => { errorMessage.style.display = 'none'; }, 5000);
         }
 
+        // ═══════════════════════════════════════
+        //  MODEL SWITCHING
+        // ═══════════════════════════════════════
 
-        // Switch model
         async function switchModel(modelUrl) {
             if (modelUrl === currentModelUrl) return;
-
             currentModelUrl = modelUrl;
-
-            // Update button states
             modelButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.model === modelUrl);
             });
-
-            // Reset references
             headBone = null;
             proceduralMeshes = [];
-
-            // Load new model
             await loadGLBModel(modelUrl);
         }
 
-        // Model switcher event listeners
         modelButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                switchModel(btn.dataset.model);
-            });
+            btn.addEventListener('click', () => switchModel(btn.dataset.model));
         });
 
-        // Remove any loading UI elements aggressively
-        function killLoadingUI() {
-            const selectors = [
-                '[class*="loader"]', '[class*="Loader"]',
-                '[class*="progress"]', '[class*="Progress"]',
-                '[class*="loading"]', '[class*="Loading"]',
-                '[class*="spinner"]', '[class*="Spinner"]',
-                '.info-panel', '.infoPanel'
-            ];
-            selectors.forEach(sel => {
-                document.querySelectorAll(sel).forEach(el => {
-                    if (!el.closest('#loading-overlay') && !el.closest('#container')) {
-                        el.remove();
-                    } else if (el.closest('#container') && !el.closest('#loading-overlay')) {
-                        el.style.display = 'none';
-                    }
-                });
-            });
-        }
+        // ═══════════════════════════════════════
+        //  INIT
+        // ═══════════════════════════════════════
 
-        // Watch for dynamically added loading elements
-        const observer = new MutationObserver(() => {
-            killLoadingUI();
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-
-        // Initialize
         async function init() {
             initThreeJS();
+            enableMouseFallback();
             animate();
 
-            // Periodically kill loading UI
-            setInterval(killLoadingUI, 500);
-
-            // Load the alien model automatically
             await loadGLBModel('alien.glb');
-
-            // Initialize face tracking
             await initFaceLandmarker();
-
-            // Start webcam after both model and face tracker are ready
-            if (faceLandmarker && avatarModel) {
-                await startWebcam();
-            }
+            if (faceLandmarker && avatarModel) await startWebcam();
         }
 
         init();
