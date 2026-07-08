@@ -3,9 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
     <title>Face Tracking Avatar</title>
     <style>
+        /* Bundled locally so the installation runs fully offline */
+        @font-face {
+            font-family: 'Baloo 2';
+            font-style: normal;
+            font-weight: 800;
+            font-display: swap;
+            src: url('vendor/fonts/baloo2-800.woff2') format('woff2');
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         #container { width: 100vw; height: 100vh; position: relative; }
@@ -142,9 +149,83 @@
             .bubble-text-top { top: 15px; }
             .bubble-text-bottom { bottom: 80px; }
         }
+
+        /* ── Kiosk mode: hide all demo chrome from the public-facing display ── */
+        body.kiosk #status,
+        body.kiosk #webcam-preview,
+        body.kiosk #model-switcher { display: none !important; }
+        body.kiosk #loading-subtext { visibility: hidden; }
+
+        /* ── Attract loop: cycling gallery of previous participants ── */
+        #attract {
+            position: absolute; inset: 0; z-index: 150;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(6,6,20,0.92);
+            opacity: 0; pointer-events: none; transition: opacity 0.8s ease;
+        }
+        #attract.visible { opacity: 1; }
+        #attract-gallery {
+            position: absolute; inset: 0; overflow: hidden;
+        }
+        #attract-gallery img {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            object-fit: cover; opacity: 0; transition: opacity 1.2s ease;
+        }
+        #attract-gallery img.show { opacity: 0.55; }
+        #attract-content {
+            position: relative; z-index: 2; text-align: center;
+            display: flex; flex-direction: column; align-items: center;
+            animation: attract-breathe 3.5s ease-in-out infinite;
+        }
+        @keyframes attract-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+        #attract-content .halo {
+            width: clamp(140px, 22vh, 260px); height: clamp(140px, 22vh, 260px);
+            border-radius: 50%; border: 4px dashed rgba(136,187,255,0.7);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 60px rgba(108,99,255,0.5), inset 0 0 40px rgba(108,99,255,0.3);
+            animation: spin 14s linear infinite;
+        }
+        #attract-content .halo svg { width: 45%; height: 45%; fill: rgba(200,220,255,0.85); animation: spin 14s linear infinite reverse; }
+        #attract-title {
+            margin-top: clamp(24px, 4vh, 48px);
+            font-family: 'Baloo 2', sans-serif; font-weight: 900; text-transform: uppercase;
+            color: #fff; letter-spacing: 0.06em;
+            font-size: clamp(36px, 7vw, 96px);
+            -webkit-text-stroke: 3px rgba(218,180,90,0.85); paint-order: stroke fill;
+            text-shadow: 0 0 20px rgba(218,180,90,0.6), 0 4px 0 rgba(160,120,40,0.5);
+        }
+        #attract-sub {
+            margin-top: clamp(8px, 1.5vh, 20px);
+            font-family: 'Baloo 2', sans-serif; font-weight: 800; text-transform: uppercase;
+            color: rgba(255,255,255,0.75); letter-spacing: 0.1em;
+            font-size: clamp(16px, 2.4vw, 34px);
+        }
+
+        /* ── Setup panel (hidden; press "S" on site to configure) ── */
+        #setup-panel {
+            position: absolute; top: 0; right: 0; height: 100%; width: 340px; max-width: 90vw;
+            background: rgba(12,14,30,0.96); z-index: 300; padding: 24px;
+            color: #eee; font-size: 14px; overflow-y: auto;
+            transform: translateX(100%); transition: transform 0.3s ease;
+            box-shadow: -8px 0 40px rgba(0,0,0,0.5);
+        }
+        #setup-panel.open { transform: translateX(0); }
+        #setup-panel h2 { font-size: 16px; margin-bottom: 4px; }
+        #setup-panel .hint { color: rgba(255,255,255,0.45); font-size: 12px; margin-bottom: 20px; }
+        #setup-panel label { display: block; margin: 18px 0 6px; color: rgba(255,255,255,0.7); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+        #setup-panel select, #setup-panel button {
+            width: 100%; padding: 10px 12px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06);
+            color: #fff; font-size: 14px; cursor: pointer;
+        }
+        #setup-panel button { margin-top: 10px; background: rgba(108,99,255,0.4); border-color: rgba(108,99,255,0.6); }
+        #setup-panel button.danger { background: rgba(255,82,82,0.25); border-color: rgba(255,82,82,0.5); }
+        #setup-panel .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+        #setup-panel .row span { color: rgba(255,255,255,0.7); }
+        #setup-close { position: absolute; top: 12px; right: 16px; background: none; border: none; width: auto; color: #fff; font-size: 24px; cursor: pointer; }
     </style>
 </head>
-<body>
+<body class="kiosk">
     <div id="container">
         <canvas id="three-canvas"></canvas>
         <video id="webcam-preview" autoplay playsinline></video>
@@ -177,14 +258,49 @@
             <div class="model-btn coming-soon">+More</div>
         </div>
 
+        <!-- Attract loop: shown when nobody is in frame -->
+        <div id="attract">
+            <div id="attract-gallery"></div>
+            <div id="attract-content">
+                <div class="halo">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                </div>
+                <div id="attract-title">Step Up</div>
+                <div id="attract-sub">Become out of this world</div>
+            </div>
+        </div>
+
+        <!-- On-site setup panel: press "S" to open -->
+        <div id="setup-panel">
+            <button id="setup-close">&times;</button>
+            <h2>Installation Setup</h2>
+            <div class="hint">Press <b>S</b> to toggle · <b>K</b> to toggle kiosk chrome · <b>F</b> for fullscreen</div>
+
+            <label for="camera-select">Camera</label>
+            <select id="camera-select"></select>
+
+            <label for="model-select">Avatar</label>
+            <select id="model-select">
+                <option value="alien.glb">Alien 1</option>
+                <option value="alien2.glb">Alien 2</option>
+            </select>
+
+            <div class="row"><span>Kiosk mode (hide chrome)</span><button id="toggle-kiosk" style="width:auto;padding:6px 14px;">On</button></div>
+            <div class="row"><span>Auto-capture gallery</span><button id="toggle-capture" style="width:auto;padding:6px 14px;">On</button></div>
+            <div class="row"><span>Saved snapshots</span><span id="capture-count">0</span></div>
+
+            <button id="enter-fullscreen">Enter Fullscreen</button>
+            <button id="clear-gallery" class="danger">Clear Saved Snapshots</button>
+        </div>
+
         <div id="error-message"></div>
     </div>
 
     <script type="importmap">
     {
         "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"
+            "three": "./vendor/three/three.module.js",
+            "three/addons/": "./vendor/three/addons/"
         }
     }
     </script>
@@ -192,7 +308,7 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { FaceLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs';
+        import { FaceLandmarker, FilesetResolver } from './vendor/mediapipe/vision_bundle.mjs';
 
         // ── Anamorphic depth illusion config ──
         const CONFIG = {
@@ -229,6 +345,37 @@
         const errorMessage = document.getElementById('error-message');
         const modelButtons = document.querySelectorAll('.model-btn:not(.coming-soon)');
         const facePlaceholder = document.getElementById('face-placeholder');
+
+        // ── Installation UI ──
+        const attractEl = document.getElementById('attract');
+        const attractGallery = document.getElementById('attract-gallery');
+        const setupPanel = document.getElementById('setup-panel');
+        const cameraSelect = document.getElementById('camera-select');
+        const modelSelect = document.getElementById('model-select');
+        const captureCountEl = document.getElementById('capture-count');
+        const toggleKioskBtn = document.getElementById('toggle-kiosk');
+        const toggleCaptureBtn = document.getElementById('toggle-capture');
+
+        // ── Installation config (persisted on the mini PC) ──
+        const STORE_KEY = 'faceAvatar.settings';
+        const GALLERY_KEY = 'faceAvatar.gallery';
+        const settings = Object.assign(
+            { cameraId: '', kiosk: true, captureEnabled: true },
+            JSON.parse(localStorage.getItem(STORE_KEY) || '{}')
+        );
+        function saveSettings() { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); }
+
+        // ── Attract / capture state ──
+        const ATTRACT_DELAY_MS = 6000;   // idle time before the attract loop takes over
+        const CAPTURE_HOLD_MS = 2500;    // steady tracking required before we snapshot someone
+        const CAPTURE_COOLDOWN_MS = 4000;// min gap between snapshots of the same visitor
+        let attractActive = false;
+        let attractTimer = 0;
+        let faceStableSince = 0;
+        let capturedThisVisit = false;
+        let lastCaptureAt = 0;
+        let gallery = JSON.parse(localStorage.getItem(GALLERY_KEY) || '[]');
+        const MAX_GALLERY = 24;
 
         // ── Head tracking state ──
         let headX = 0, headY = 0, headZ = CONFIG.defaultDistanceCm;
@@ -489,7 +636,7 @@
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, CONFIG.near, CONFIG.far);
             camera.position.set(0, 0, CONFIG.defaultDistanceCm);
 
-            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
             renderer.setClearColor(0x000000, 1);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -625,11 +772,11 @@
             showLoading('Initializing Face Tracking', 'Setting up AI-powered detection...');
             try {
                 const filesetResolver = await FilesetResolver.forVisionTasks(
-                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm'
+                    './vendor/mediapipe/wasm'
                 );
                 faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
                     baseOptions: {
-                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+                        modelAssetPath: './vendor/mediapipe/model/face_landmarker.task',
                         delegate: 'GPU'
                     },
                     outputFaceBlendshapes: true,
@@ -647,20 +794,63 @@
             }
         }
 
+        let webcamRetryTimer = null;
         async function startWebcam() {
             try {
-                videoStream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
-                });
+                if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+
+                const video = { width: { ideal: 640 }, height: { ideal: 480 } };
+                if (settings.cameraId) video.deviceId = { exact: settings.cameraId };
+                else video.facingMode = 'user';
+
+                videoStream = await navigator.mediaDevices.getUserMedia({ video });
                 webcamPreview.srcObject = videoStream;
                 await webcamPreview.play();
                 webcamPreview.className = 'visible';
                 updateStatus('Face tracking active');
                 statusElement.className = 'good';
+
+                // Auto-recover if the (possibly external / outdoor) camera drops out.
+                videoStream.getVideoTracks().forEach(track => {
+                    track.addEventListener('ended', scheduleWebcamRecovery);
+                });
+
+                await populateCameraList();
             } catch (error) {
                 console.error('Error starting webcam:', error);
-                showError('Webcam unavailable — using mouse fallback');
+                // A remembered device may have been unplugged — fall back to the default camera.
+                if (settings.cameraId) {
+                    console.warn('Selected camera failed, falling back to default');
+                    settings.cameraId = ''; saveSettings();
+                    return startWebcam();
+                }
+                showError('Camera unavailable — retrying…');
+                scheduleWebcamRecovery();
             }
+        }
+
+        function scheduleWebcamRecovery() {
+            if (webcamRetryTimer) return;
+            updateStatus('Camera lost — reconnecting…');
+            statusElement.className = 'bad';
+            webcamRetryTimer = setTimeout(async () => {
+                webcamRetryTimer = null;
+                await startWebcam();
+            }, 3000);
+        }
+
+        async function populateCameraList() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cams = devices.filter(d => d.kind === 'videoinput');
+            cameraSelect.innerHTML = '';
+            cams.forEach((cam, i) => {
+                const opt = document.createElement('option');
+                opt.value = cam.deviceId;
+                opt.textContent = cam.label || `Camera ${i + 1}`;
+                cameraSelect.appendChild(opt);
+            });
+            if (settings.cameraId) cameraSelect.value = settings.cameraId;
         }
 
         // ═══════════════════════════════════════
@@ -983,6 +1173,117 @@
         }
 
         // ═══════════════════════════════════════
+        //  SNAPSHOT CAPTURE + ATTRACT GALLERY
+        // ═══════════════════════════════════════
+
+        // Downscale the live 3D canvas to a lightweight JPEG for the cycling gallery.
+        function snapshotComposite() {
+            const src = renderer.domElement;
+            if (!src.width) return null;
+            const targetW = 640;
+            const scale = targetW / src.width;
+            const c = document.createElement('canvas');
+            c.width = targetW;
+            c.height = Math.round(src.height * scale);
+            const ctx = c.getContext('2d');
+            ctx.drawImage(src, 0, 0, c.width, c.height);
+            try {
+                return c.toDataURL('image/jpeg', 0.72);
+            } catch (e) {
+                console.warn('Snapshot failed', e);
+                return null;
+            }
+        }
+
+        function captureVisitor() {
+            if (!settings.captureEnabled) return;
+            const data = snapshotComposite();
+            if (!data) return;
+            gallery.push(data);
+            while (gallery.length > MAX_GALLERY) gallery.shift();
+            persistGallery();
+            capturedThisVisit = true;
+            lastCaptureAt = performance.now();
+        }
+
+        // localStorage can overflow with many images — trim oldest until it fits.
+        function persistGallery() {
+            for (;;) {
+                try {
+                    localStorage.setItem(GALLERY_KEY, JSON.stringify(gallery));
+                    break;
+                } catch (e) {
+                    if (gallery.length <= 1) { gallery = []; localStorage.removeItem(GALLERY_KEY); break; }
+                    gallery.shift();
+                }
+            }
+            if (captureCountEl) captureCountEl.textContent = gallery.length;
+        }
+
+        // Cross-fade through saved snapshots while in attract mode.
+        let galleryImgA, galleryImgB, galleryIndex = 0, galleryFront = null, galleryTimer = 0;
+        function initGalleryImgs() {
+            galleryImgA = document.createElement('img');
+            galleryImgB = document.createElement('img');
+            attractGallery.appendChild(galleryImgA);
+            attractGallery.appendChild(galleryImgB);
+        }
+        function advanceGallery() {
+            if (gallery.length === 0) return;
+            const next = galleryFront === galleryImgA ? galleryImgB : galleryImgA;
+            const front = galleryFront === galleryImgA ? galleryImgA : (galleryFront === galleryImgB ? galleryImgB : null);
+            next.src = gallery[galleryIndex % gallery.length];
+            galleryIndex++;
+            next.classList.add('show');
+            if (front) front.classList.remove('show');
+            galleryFront = next;
+        }
+
+        function setAttract(active) {
+            if (active === attractActive) return;
+            attractActive = active;
+            attractEl.classList.toggle('visible', active);
+            if (active) {
+                galleryIndex = 0; galleryTimer = 0;
+                if (gallery.length) advanceGallery();
+            } else {
+                if (galleryImgA) galleryImgA.classList.remove('show');
+                if (galleryImgB) galleryImgB.classList.remove('show');
+                galleryFront = null;
+            }
+        }
+
+        // Called every frame to drive attract/capture timing.
+        function updateInstallation(now) {
+            // Enter attract mode after a stretch with no face; leave the instant someone appears.
+            if (faceDetected) {
+                attractTimer = now;
+                if (attractActive) setAttract(false);
+
+                // Auto-capture once the visitor holds steady.
+                if (settings.captureEnabled && avatarVisible) {
+                    if (!faceStableSince) faceStableSince = now;
+                    if (!capturedThisVisit &&
+                        now - faceStableSince > CAPTURE_HOLD_MS &&
+                        now - lastCaptureAt > CAPTURE_COOLDOWN_MS) {
+                        captureVisitor();
+                    }
+                } else {
+                    faceStableSince = 0;
+                }
+            } else {
+                faceStableSince = 0;
+                capturedThisVisit = false; // reset so the next visitor gets captured
+                if (!attractActive && now - attractTimer > ATTRACT_DELAY_MS) setAttract(true);
+            }
+
+            if (attractActive && gallery.length > 1) {
+                galleryTimer += 0.016;
+                if (galleryTimer > 3.5) { galleryTimer = 0; advanceGallery(); }
+            }
+        }
+
+        // ═══════════════════════════════════════
         //  ANIMATION LOOP
         // ═══════════════════════════════════════
 
@@ -992,6 +1293,7 @@
 
             updateOffAxisProjection();
             processFaceTracking();
+            updateInstallation(performance.now());
 
             // Animate wireframe objects with rotation and floating
             for (let i = 0; i < wireframeObjects.length; i++) {
@@ -1064,15 +1366,77 @@
         });
 
         // ═══════════════════════════════════════
+        //  SETUP PANEL + KIOSK CONTROLS
+        // ═══════════════════════════════════════
+
+        function applyKiosk() {
+            document.body.classList.toggle('kiosk', settings.kiosk);
+            if (toggleKioskBtn) toggleKioskBtn.textContent = settings.kiosk ? 'On' : 'Off';
+        }
+        function applyCaptureToggle() {
+            if (toggleCaptureBtn) toggleCaptureBtn.textContent = settings.captureEnabled ? 'On' : 'Off';
+        }
+
+        function setupPanelControls() {
+            document.getElementById('setup-close').addEventListener('click', () => setupPanel.classList.remove('open'));
+
+            cameraSelect.addEventListener('change', async () => {
+                settings.cameraId = cameraSelect.value; saveSettings();
+                await startWebcam();
+            });
+
+            modelSelect.value = currentModelUrl;
+            modelSelect.addEventListener('change', () => switchModel(modelSelect.value));
+
+            toggleKioskBtn.addEventListener('click', () => { settings.kiosk = !settings.kiosk; saveSettings(); applyKiosk(); });
+            toggleCaptureBtn.addEventListener('click', () => { settings.captureEnabled = !settings.captureEnabled; saveSettings(); applyCaptureToggle(); });
+
+            document.getElementById('enter-fullscreen').addEventListener('click', enterFullscreen);
+            document.getElementById('clear-gallery').addEventListener('click', () => {
+                gallery = []; persistGallery();
+                if (galleryImgA) galleryImgA.classList.remove('show');
+                if (galleryImgB) galleryImgB.classList.remove('show');
+                galleryFront = null;
+            });
+
+            applyKiosk();
+            applyCaptureToggle();
+            captureCountEl.textContent = gallery.length;
+        }
+
+        function enterFullscreen() {
+            const el = document.documentElement;
+            if (document.fullscreenElement) document.exitFullscreen();
+            else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+        }
+
+        // Hidden keyboard shortcuts for on-site operators.
+        document.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 's') setupPanel.classList.toggle('open');
+            else if (k === 'k') { settings.kiosk = !settings.kiosk; saveSettings(); applyKiosk(); }
+            else if (k === 'f') enterFullscreen();
+        });
+
+        // Keep the on-screen model buttons and the setup dropdown in sync.
+        const _switchModel = switchModel;
+        switchModel = async function(url) {
+            if (modelSelect) modelSelect.value = url;
+            await _switchModel(url);
+        };
+
+        // ═══════════════════════════════════════
         //  INIT
         // ═══════════════════════════════════════
 
         async function init() {
             initThreeJS();
             enableMouseFallback();
+            initGalleryImgs();
+            setupPanelControls();
             animate();
 
-            await loadGLBModel('alien.glb');
+            await loadGLBModel(currentModelUrl);
             await initFaceLandmarker();
             if (faceLandmarker && avatarModel) await startWebcam();
         }
