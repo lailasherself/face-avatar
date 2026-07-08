@@ -255,6 +255,7 @@
         <div id="model-switcher">
             <button class="model-btn active" data-model="alien.glb">Alien 1</button>
             <button class="model-btn" data-model="alien2.glb">Alien 2</button>
+            <button class="model-btn" data-model="vendor/facecap.glb">Face</button>
             <div class="model-btn coming-soon">+More</div>
         </div>
 
@@ -283,6 +284,7 @@
             <select id="model-select">
                 <option value="alien.glb">Alien 1</option>
                 <option value="alien2.glb">Alien 2</option>
+                <option value="vendor/facecap.glb">Face (rigged — real expressions)</option>
             </select>
 
             <div class="row"><span>Kiosk mode (hide chrome)</span><button id="toggle-kiosk" style="width:auto;padding:6px 14px;">On</button></div>
@@ -308,6 +310,8 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+        import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
         import { FaceLandmarker, FilesetResolver } from './vendor/mediapipe/vision_bundle.mjs';
 
         // ── Anamorphic depth illusion config ──
@@ -369,6 +373,8 @@
         const ATTRACT_DELAY_MS = 6000;   // idle time before the attract loop takes over
         const CAPTURE_HOLD_MS = 2500;    // steady tracking required before we snapshot someone
         const CAPTURE_COOLDOWN_MS = 4000;// min gap between snapshots of the same visitor
+        // ?preview shows the avatar without a live face (on-site setup / model checks).
+        const previewMode = new URLSearchParams(location.search).has('preview');
         let attractActive = false;
         let attractTimer = 0;
         let faceStableSince = 0;
@@ -683,9 +689,32 @@
         //  AVATAR LOADING
         // ═══════════════════════════════════════
 
+        // ARKit-rigged avatars (e.g. facecap.glb) are meshopt-compressed with KTX2
+        // textures, so the loader needs both decoders. Created lazily once.
+        let ktx2Loader = null;
+        function getKTX2Loader() {
+            if (!ktx2Loader) {
+                ktx2Loader = new KTX2Loader()
+                    .setTranscoderPath('./vendor/three/addons/libs/basis/')
+                    .detectSupport(renderer);
+            }
+            return ktx2Loader;
+        }
+
+        // MediaPipe emits blendshapes like "eyeBlinkLeft"; some rigs (facecap) name
+        // them "eyeBlink_L". Resolve whichever spelling the model actually has.
+        function morphKeyFor(dict, name) {
+            if (dict[name] !== undefined) return name;
+            const alt = name.replace(/Left$/, '_L').replace(/Right$/, '_R');
+            if (dict[alt] !== undefined) return alt;
+            return undefined;
+        }
+
         async function loadGLBModel(fileOrUrl) {
             showLoading('Loading Avatar', 'Preparing your alien companion...');
             const loader = new GLTFLoader();
+            loader.setMeshoptDecoder(MeshoptDecoder);
+            loader.setKTX2Loader(getKTX2Loader());
             const isFile = fileOrUrl instanceof File;
             const url = isFile ? URL.createObjectURL(fileOrUrl) : fileOrUrl;
 
@@ -705,11 +734,12 @@
                     if (child.isMesh && child.morphTargetInfluences && child.morphTargetDictionary) {
                         morphTargetMeshes.push(child);
                         for (const name of BLENDSHAPE_NAMES) {
-                            if (child.morphTargetDictionary[name] !== undefined) {
+                            const key = morphKeyFor(child.morphTargetDictionary, name);
+                            if (key !== undefined) {
                                 if (!morphTargetIndices[name]) morphTargetIndices[name] = [];
                                 morphTargetIndices[name].push({
                                     mesh: child,
-                                    index: child.morphTargetDictionary[name]
+                                    index: child.morphTargetDictionary[key]
                                 });
                             }
                         }
@@ -751,6 +781,12 @@
                 showFacePlaceholder(true);
                 updateStatus('Move into frame to activate avatar');
                 statusElement.className = '';
+
+                if (previewMode) {
+                    avatarModel.visible = true;
+                    avatarVisible = true;
+                    showFacePlaceholder(false);
+                }
 
                 hideLoading();
                 if (isFile) URL.revokeObjectURL(url);
@@ -858,6 +894,7 @@
         // ═══════════════════════════════════════
 
         function processFaceTracking() {
+            if (previewMode) { if (avatarModel) avatarModel.visible = true; return; }
             if (!faceLandmarker || !webcamPreview.videoWidth) return;
 
             const currentTime = webcamPreview.currentTime;
@@ -1255,6 +1292,7 @@
 
         // Called every frame to drive attract/capture timing.
         function updateInstallation(now) {
+            if (previewMode) return; // static preview: no attract loop, no auto-capture
             // Enter attract mode after a stretch with no face; leave the instant someone appears.
             if (faceDetected) {
                 attractTimer = now;
