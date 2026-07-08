@@ -255,6 +255,7 @@
         <div id="model-switcher">
             <button class="model-btn active" data-model="alien.glb">Alien 1</button>
             <button class="model-btn" data-model="alien2.glb">Alien 2</button>
+            <button class="model-btn" data-model="vendor/avatar-character.glb">Char</button>
             <button class="model-btn" data-model="vendor/facecap.glb">Face</button>
             <div class="model-btn coming-soon">+More</div>
         </div>
@@ -284,7 +285,8 @@
             <select id="model-select">
                 <option value="alien.glb">Alien 1</option>
                 <option value="alien2.glb">Alien 2</option>
-                <option value="vendor/facecap.glb">Face (rigged — real expressions)</option>
+                <option value="vendor/avatar-character.glb">Character (stylized — real expressions)</option>
+                <option value="vendor/facecap.glb">Face (realistic — real expressions)</option>
             </select>
 
             <div class="row"><span>Kiosk mode (hide chrome)</span><button id="toggle-kiosk" style="width:auto;padding:6px 14px;">On</button></div>
@@ -756,8 +758,21 @@
 
                 if (!headBone) headBone = avatarModel;
 
-                // Scale and position alien inside wireframe room
-                const box = new THREE.Box3().setFromObject(avatarModel);
+                // Full-body avatars (Ready Player Me style) → frame as a floating head:
+                // hide body/outfit meshes so only the head + eyes + teeth + hair remain.
+                const bodyRe = /body|outfit|footwear|shoe/i;
+                let hasBody = false;
+                avatarModel.traverse((c) => { if (c.isMesh && bodyRe.test(c.name)) hasBody = true; });
+                if (hasBody) {
+                    avatarModel.traverse((c) => { if (c.isMesh && bodyRe.test(c.name)) c.visible = false; });
+                }
+
+                // Scale and position inside wireframe room. Frame on the *visible* meshes,
+                // so a full-body avatar frames on its head rather than the whole body.
+                avatarModel.updateWorldMatrix(true, true);
+                const box = new THREE.Box3();
+                avatarModel.traverse((c) => { if (c.isMesh && c.visible && c.geometry) box.expandByObject(c); });
+                if (box.isEmpty()) box.setFromObject(avatarModel);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);

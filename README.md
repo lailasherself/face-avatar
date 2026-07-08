@@ -65,12 +65,17 @@ to draw people in.
 
 - **Alien 1 / Alien 2** — stylized alien heads. These have *no facial rig*, so only head
   movement is truly tracked; mouth/eyes are approximated procedurally.
-- **Face (rigged)** — `facecap.glb`, an ARKit-rigged head that genuinely mirrors the
-  visitor's expressions (smile, blink, jaw, brows…) using the full 52-blendshape standard.
-  This is a **proof-of-concept of Memoji-style expression mirroring** — a realistic head,
-  not the final look. Any avatar rigged with the 52 ARKit blendshapes (e.g. a Ready Player
-  Me head) drops into the same slot and will emote the same way. MediaPipe blendshape names
-  (`eyeBlinkLeft`) are mapped to whatever naming the model uses (`eyeBlink_L`).
+- **Character (stylized)** — `avatar-character.glb`, a cartoon Ready-Player-Me-style head
+  with the full 52 ARKit blendshapes. This is the **Memoji-style avatar**: the character
+  genuinely mirrors the visitor's expressions (smile, blink, jaw, brows…). Full-body
+  avatars are auto-framed as a floating head (body meshes hidden). Swap in the artist's own
+  character the same way — export any avatar with `?morphTargets=ARKit` and drop the `.glb`
+  in `vendor/`.
+- **Face (realistic)** — `facecap.glb`, Apple's ARKit face-capture head. Same rig, realistic
+  look. Useful as a reference/fallback.
+
+MediaPipe blendshape names (`eyeBlinkLeft`) are mapped to whatever naming a model uses
+(`eyeBlink_L`), so any ARKit-rigged avatar animates without renaming.
 
 ### On-site operator shortcuts
 
