@@ -758,6 +758,9 @@
 
                 if (!headBone) headBone = avatarModel;
 
+                // ✨ COSMIC CHARACTER STYLING (cosmic-character branch)
+                if (COSMIC.enabled) applyCosmicStyle(avatarModel);
+
                 // Full-body avatars (Ready Player Me style) → frame as a floating head:
                 // hide body/outfit meshes so only the head + eyes + teeth + hair remain.
                 const bodyRe = /body|outfit|footwear|shoe/i;
@@ -1006,6 +1009,53 @@
                 statusElement.className = 'good';
                 webcamPreview.className = 'tracking';
             }
+        }
+
+        // ═══════════════════════════════════════
+        //  ✨ COSMIC CHARACTER STYLING
+        // ═══════════════════════════════════════
+        const COSMIC = {
+            enabled: true,
+            skin:      new THREE.Color(0x6d4bff),  // nebula violet base tint
+            glow:      new THREE.Color(0x8fd3ff),  // cyan celestial rim glow
+            emissive:  0.35,   // how much inner glow
+            rimPower:  2.2,    // fresnel falloff (higher = thinner rim)
+            rimStrength: 1.4,
+        };
+
+        function applyCosmicStyle(root) {
+            root.traverse((child) => {
+                if (!child.isMesh || !child.material) return;
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach((mat) => {
+                    if (mat.userData.__cosmic) return;
+                    mat.userData.__cosmic = true;
+                    // nebula tint + inner emissive
+                    if (mat.color) mat.color.lerp(COSMIC.skin, 0.35);
+                    if ('emissive' in mat) {
+                        mat.emissive = COSMIC.skin.clone();
+                        mat.emissiveIntensity = COSMIC.emissive;
+                    }
+                    // fresnel rim glow via onBeforeCompile
+                    mat.onBeforeCompile = (shader) => {
+                        shader.uniforms.uRimColor = { value: COSMIC.glow };
+                        shader.uniforms.uRimPower = { value: COSMIC.rimPower };
+                        shader.uniforms.uRimStrength = { value: COSMIC.rimStrength };
+                        shader.fragmentShader = shader.fragmentShader
+                          .replace('#include <common>',
+                            '#include <common>\nuniform vec3 uRimColor;\nuniform float uRimPower;\nuniform float uRimStrength;\nvarying vec3 vCosmicNormal;\nvarying vec3 vCosmicView;')
+                          .replace('#include <output_fragment>',
+                            'float rim = pow(1.0 - max(dot(normalize(vCosmicNormal), normalize(vCosmicView)), 0.0), uRimPower);\ngl_FragColor.rgb += uRimColor * rim * uRimStrength;\n#include <output_fragment>');
+                        shader.vertexShader = shader.vertexShader
+                          .replace('#include <common>',
+                            '#include <common>\nvarying vec3 vCosmicNormal;\nvarying vec3 vCosmicView;')
+                          .replace('#include <begin_vertex>',
+                            '#include <begin_vertex>\nvCosmicNormal = normalize(normalMatrix * normal);\nvCosmicView = normalize(-(modelViewMatrix * vec4(transformed,1.0)).xyz);');
+                        mat.userData.__shader = shader;
+                    };
+                    mat.needsUpdate = true;
+                });
+            });
         }
 
         // ═══════════════════════════════════════
@@ -1486,6 +1536,20 @@
             initThreeJS();
             enableMouseFallback();
             initGalleryImgs();
+
+            // Optional ?avatar= to preselect an avatar by name or path
+            // (e.g. ?avatar=character, or combine with ?preview to see it without a face).
+            const avatarParam = new URLSearchParams(location.search).get('avatar');
+            if (avatarParam) {
+                const map = {
+                    character: 'vendor/avatar-character.glb',
+                    face: 'vendor/facecap.glb',
+                    alien: 'alien.glb', alien1: 'alien.glb', alien2: 'alien2.glb'
+                };
+                currentModelUrl = map[avatarParam.toLowerCase()] || avatarParam;
+                modelButtons.forEach(b => b.classList.toggle('active', b.dataset.model === currentModelUrl));
+            }
+
             setupPanelControls();
             animate();
 
