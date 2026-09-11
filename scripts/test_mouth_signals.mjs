@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {resolveMouth,oralWeight} from '../mouth-signals.js';
+import {readFileSync} from 'node:fs';
 
 test('opposing mouth directions cancel and opening expressions share a budget',()=>{
  const v=resolveMouth({jawOpen:.8,jawLeft:.7,jawRight:.5,mouthLeft:1,mouthRight:1,mouthFunnel:.8,mouthPucker:.9,
@@ -27,8 +28,9 @@ test('tongue clears closing lips and does not inherit lip distortion',()=>{
 
 test('a bilateral smile exposes teeth without requiring a large tracked jaw opening',()=>{
  const smile=resolveMouth({mouthSmileLeft:.8,mouthSmileRight:.8,jawOpen:.04,mouthUpperUpLeft:.25,mouthUpperUpRight:.25});
- assert.equal(smile.jawOpen,.32);
- assert(Math.abs(smile.mouthUpperUpLeft-.546)<1e-10);assert.equal(smile.mouthUpperUpRight,smile.mouthUpperUpLeft);
+ assert.equal(smile.jawOpen,.42);
+ assert.equal(smile.dentalJawOpen,0);assert.equal(smile.smileBite,1);
+ assert(Math.abs(smile.mouthUpperUpLeft-.5135)<1e-10);assert.equal(smile.mouthUpperUpRight,smile.mouthUpperUpLeft);
  assert.equal(smile.mouthSmileLeft,.8);assert.equal(smile.mouthSmileRight,.8);
  const talking=resolveMouth({mouthSmileLeft:1,mouthSmileRight:1,jawOpen:.8});
  assert.equal(talking.jawOpen,.8,'do not limit a genuinely open jaw');
@@ -50,6 +52,26 @@ test('smile reveal ramps continuously instead of snapping the jaw open',()=>{
  let previous=0;
  for(let i=0;i<=100;i++){
   const v=resolveMouth({mouthSmileLeft:i/100,mouthSmileRight:i/100});
-  assert(v.jawOpen>=previous);assert(v.jawOpen-previous<.008);previous=v.jawOpen;
+  assert(v.jawOpen>=previous);assert(v.jawOpen-previous<.010);previous=v.jawOpen;
  }
+});
+
+test('measured photo smile retracts both lips with a nearly closed dental bite',()=>{
+ const photo=JSON.parse(readFileSync(new URL('./fixtures/smile-photo-scores.json',import.meta.url)));
+ const v=resolveMouth({...photo});
+ assert(v.smileBite>.99);assert(v.dentalJawOpen<.001);
+ assert(v.mouthUpperUpLeft>.9);assert(v.mouthLowerDownLeft>.4);
+ assert.equal(oralWeight('jawOpen',v.jawOpen,'Orbit Upper ivory teeth',v),v.dentalJawOpen);
+ assert.equal(oralWeight('jawOpen',v.jawOpen,'Orbit skin',v),v.jawOpen);
+});
+
+test('talking, tongue extension and deliberate closed lips release smile bite',()=>{
+ for(const extra of [{jawOpen:.7},{tongueOut:1},{mouthClose:1},{mouthPucker:1},{mouthPressLeft:1}]){
+  const v=resolveMouth({mouthSmileLeft:1,mouthSmileRight:1,...extra});
+  assert.equal(v.smileBite,0);
+  if(extra.jawOpen)assert.equal(v.dentalJawOpen,.7);
+  if(extra.tongueOut)assert.equal(v.dentalJawOpen,.65);
+ }
+ assert.equal(resolveMouth({mouthSmileLeft:1}).smileBite,0);
+ assert.equal(resolveMouth({}).smileBite,0);
 });

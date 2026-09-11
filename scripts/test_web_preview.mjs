@@ -13,7 +13,7 @@ test('Vercel opens the cockpit and validates assets before publishing', () => {
 
 test('preview includes tracking workers, binaries and every selectable roster', () => {
   const files = previewFiles();
-  for (const file of ['cockpit.html', 'fleet.js', 'face-tracking-worker.js', 'hand-tracking-worker.js',
+  for (const file of ['cockpit.html', 'fleet.js', 'smile-rig.js', 'face-tracking-worker.js', 'hand-tracking-worker.js',
     'finger-tracking-worker.js', 'tongue-tracking-worker.js', 'vendor/mediapipe/model/face_landmarker.task',
     'vendor/mediapipe/model/hand_landmarker.task', 'vendor/mediapipe/model/pose_landmarker_lite.task',
     'vendor/mediapipe/wasm/vision_wasm_internal.wasm', 'vendor/mediapipe/wasm/vision_wasm_nosimd_internal.wasm',

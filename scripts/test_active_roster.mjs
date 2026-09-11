@@ -60,3 +60,21 @@ test('refined Orbit and Coral export distinct skin finishes and higher-resolutio
     assert.equal(png.readUInt32BE(20),2048);
   }
 });
+
+test('revised mouth bags export skinned lining with lip-following targets',()=>{
+  for(const id of ['clay','nebula','glass']){
+    const character=manifest.characters.find(c=>c.id===id);
+    const bytes=readFileSync(new URL(character.url,root));
+    const gltf=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)));
+    const node=gltf.nodes.find(n=>n.name===id[0].toUpperCase()+id.slice(1)+' Oral Cavity');
+    assert(node&&node.skin!==undefined,id+' mouth bag must follow the head skin');
+    const mesh=gltf.meshes[node.mesh];
+    assert.equal(node.extras.oralRevision,'rounded-mouthbag-1');
+    for(const channel of ['jawOpen','mouthClose','mouthSmileLeft','mouthSmileRight','mouthUpperUpLeft','mouthLowerDownRight'])
+      assert(mesh.extras.targetNames.includes(channel),id+' missing lining deformation '+channel);
+    for(const primitive of mesh.primitives){
+      assert(primitive.attributes.COLOR_0!==undefined,id+' missing depth tint');
+      assert(gltf.materials[primitive.material].pbrMetallicRoughness.roughnessFactor>.8);
+    }
+  }
+});

@@ -1,3 +1,4 @@
+// Recorded mixer before independent smile bite and lip retraction.
 const clamp=v=>Number.isFinite(v)?Math.min(1,Math.max(0,v)):0;
 const opposite=(v,a,b)=>{const d=v[a]-v[b];v[a]=Math.max(0,d);v[b]=Math.max(0,-d);};
 
@@ -16,12 +17,9 @@ export function resolveMouth(values){
   const smile=Math.min(get('mouthSmileLeft'),get('mouthSmileRight'));
   const smileRamp=clamp((smile-.15)/.65);
   const smileReveal=smileRamp*smileRamp*(3-2*smileRamp)*(1-get('mouthClose'))
-    *(1-clamp((round-.15)/.65))*(1-clamp((get('mouthRollUpper')-.15)/.85))
-    *(1-clamp((Math.max(get('mouthPressLeft'),get('mouthPressRight'))-.3)/.7));
-  const talking=clamp((get('jawOpen')-.12)/.33);
-  values.smileBite=smileReveal*(1-talking*talking*(3-2*talking))*(1-Math.min(1,tongue*5));
-  values.dentalJawOpen=Math.max(get('jawOpen')*(1-values.smileBite),clearance);
-  values.jawOpen=Math.max(get('jawOpen'),clearance,.42*smileReveal);
+    *(1-clamp(round/.8))*(1-get('mouthRollUpper'))
+    *(1-Math.max(get('mouthPressLeft'),get('mouthPressRight')));
+  values.jawOpen=Math.max(get('jawOpen'),clearance,.32*smileReveal);
   values.mouthClose=Math.min(get('mouthClose'),Math.max(0,values.jawOpen-clearance));
   const open=values.jawOpen-values.mouthClose,exposed=Math.min(1,tongue*5);
   values.mouthFunnel=get('mouthFunnel')*roundScale*(1-exposed*.9);
@@ -31,8 +29,8 @@ export function resolveMouth(values){
     const smile=get('mouthSmile'+side),stretch=get('mouthStretch'+side),budget=Math.max(1,smile+stretch);
     values['mouthSmile'+side]=smile/budget*(1-narrowing*.75);
     values['mouthStretch'+side]=stretch/budget*(1-narrowing*.75);
-    values['mouthLowerDown'+side]=get('mouthLowerDown'+side)*(.35*(1-open*.75)*(1-smileReveal)+smileReveal*(1-open*.35))*(1-exposed);
-    values['mouthUpperUp'+side]=Math.max(get('mouthUpperUp'+side)*(.35+.65*smileReveal),.65*smileReveal*(1-open*.5))*(1-exposed);
+    values['mouthLowerDown'+side]=get('mouthLowerDown'+side)*.35*(1-open*.75)*(1-exposed);
+    values['mouthUpperUp'+side]=Math.max(get('mouthUpperUp'+side)*.35,.65*smileReveal*(1-open*.5))*(1-exposed);
     values['mouthPress'+side]=get('mouthPress'+side)*(1-open)*(1-exposed);
     values['mouthDimple'+side]=get('mouthDimple'+side)*(1-narrowing);
   }
@@ -43,8 +41,7 @@ export function resolveMouth(values){
   return values;
 }
 
-export function oralWeight(name,value,material,values={}){
-  if(/teeth|dental|gingiva/i.test(material)&&name==='jawOpen')return values.dentalJawOpen??value;
+export function oralWeight(name,value,material){
   // Lip expressions must not pull the back wall of the mouth out through the
   // opening, or flatten/shorten the long tongue itself.
   if(/tongue/i.test(material)&&name.startsWith('mouth')&&name!=='mouthClose')return 0;

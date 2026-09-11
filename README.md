@@ -157,11 +157,17 @@ Live eyes reject isolated camera-tracking spikes before smoothing. Blinks stay
 independent and override competing squint/wide signals; brief face-detection gaps
 retain the last expression. Tests: `node --test scripts/test_eye_signals.mjs`.
 
-Bilateral smiles add bounded jaw clearance and upper-lip lift to reveal the teeth,
-with the oral-cavity rim following the smile. Explicit lip closure, pressing,
-rolling and rounding suppress this extra opening; tongue clearance stays separate.
+Bilateral smiles retract both lips while a separate dental signal keeps the bite
+nearly closed. `smile-rig.js` adds a smile-only, head-skinned dental alignment morph
+at load time without changing the loaded rig's neutral tooth positions. Kudzu and
+Clay have bounded fit adjustments in the active manifest. Talking and tongue
+extension release the bite correction; deliberate lip closure suppresses it.
 `node scripts/test_smile_teeth_browser.cjs` compares visible dental pixels across
-all active rigs against the previous smile mix and checks neutral mouths unchanged.
+all active rigs against the recorded previous mixer, checks upper/lower rows
+separately and verifies unchanged neutral mouths. `SMILE_PHOTO=1` uses expression
+scores measured locally from the supplied smile photo, without publishing the photo.
+Clay, Nebula and Glass also include revised Blender-authored mouth cavities;
+see [mouth interior notes](blender/mouth-interiors.md) for source changes and limits.
 
 ## Legacy Head-Only App
 

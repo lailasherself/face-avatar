@@ -15,6 +15,7 @@ import { PoseCorrectives } from './pose-correctives.js';
 import { TongueTracker } from './tongue-tracking.js';
 import { FaceTracker } from './face-tracking.js';
 import { resolveMouth, oralWeight } from './mouth-signals.js';
+import { attachSmileBite } from './smile-rig.js';
 import { ZedSource } from './zed-source.js';
 import { CameraFraming, cameraConstraints } from './camera-framing.js';
 
@@ -129,6 +130,7 @@ function loadCharacter(index){
   if(characterLoads.has(index))return characterLoads.get(index);
   const pending=(async()=>{
     const info=manifest.characters[index],gltf=await loader.loadAsync(info.url);
+    attachSmileBite(gltf.scene,info.smileBiteFit);
     const meshes=[],rest=[];let head=null;
     gltf.scene.traverse(o=>{
       if(o.isMesh){
@@ -229,7 +231,7 @@ function driveFace(dt,time){
   resolveEyeAperture(values);
   resolveMouth(values);
   for(const mesh of current.meshes){
-    for(const [name,i] of Object.entries(mesh.morphTargetDictionary))mesh.morphTargetInfluences[i]=oralWeight(name,values[name]||0,mesh.material?.name||'');
+    for(const [name,i] of Object.entries(mesh.morphTargetDictionary))mesh.morphTargetInfluences[i]=oralWeight(name,values[name]||0,mesh.material?.name||'',values);
   }
   smoothRotation.slerp(targetRotation,alpha);
   if(current.head&&current.headRest){
