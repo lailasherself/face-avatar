@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#edf1ee">
+  <title>Face Avatar</title>
+  <script>
+    const displayURL=new URL(location.href);
+    // Old framing links must not expose the operator workspace underneath.
+    if(displayURL.searchParams.has('framing')&&displayURL.searchParams.has('setup')){
+      displayURL.searchParams.delete('setup');history.replaceState(null,'',displayURL);
+    }
+    document.documentElement.classList.toggle('installation',!displayURL.searchParams.has('setup'));
+  </script>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="fleet.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}</script>
+</head>
+<body>
+  <main id="app">
+    <div id="stage" aria-label="Interactive 3D avatar"><canvas id="scene"></canvas></div>
+    <header>
+      <a class="brand" href="index.html"><span class="brand-mark">fa</span><span>FACE AVATAR<span class="brand-sub">CHARACTER STUDIO</span></span></a>
+      <div class="header-right"><span class="status" id="tracking-status" role="status">Camera off</span><button id="camera-framing-toggle" class="icon" title="Camera framing" aria-label="Camera framing"><img src="vendor/lucide/maximize.svg" alt=""></button><button id="camera-toggle" class="primary"><img src="vendor/lucide/video.svg" alt="">Start camera</button></div>
+    </header>
+    <section class="character-info" aria-label="Selected character">
+      <div class="eyebrow">THE FLEET <span id="character-number">01 / 08</span></div>
+      <h1 id="character-name">Orbit</h1>
+      <p id="character-detail">LILAC / FOUR ANTENNAE</p>
+      <div class="character-nav"><button id="previous" class="icon" title="Previous character" aria-label="Previous character"><img src="vendor/lucide/arrow-left.svg" alt=""></button><button id="next" class="icon" title="Next character" aria-label="Next character"><img src="vendor/lucide/arrow-right.svg" alt=""></button></div>
+    </section>
+    <aside id="expression-panel" aria-label="Expression controls">
+      <div class="panel-title"><h2>Expressions</h2><button id="reset-expression" class="icon small" title="Reset expression" aria-label="Reset expression"><img src="vendor/lucide/rotate-ccw.svg" alt=""></button></div>
+      <div class="presets" role="group" aria-label="Expression presets">
+        <button data-preset="neutral" class="selected">Neutral</button><button data-preset="happy">Happy</button><button data-preset="surprised">Surprised</button><button data-preset="wink">Wink</button>
+      </div>
+      <div class="sliders">
+        <label>Jaw open <output id="jaw-value">0%</output><input id="jaw" type="range" min="0" max="1" step=".01" value="0" data-channels="jawOpen"></label>
+        <label>Smile <output id="smile-value">0%</output><input id="smile" type="range" min="0" max="1" step=".01" value="0" data-channels="mouthSmileLeft,mouthSmileRight"></label>
+        <label>Blink <output id="blink-value">0%</output><input id="blink" type="range" min="0" max="1" step=".01" value="0" data-channels="eyeBlinkLeft,eyeBlinkRight"></label>
+        <label>Brow lift <output id="brow-value">0%</output><input id="brow" type="range" min="0" max="1" step=".01" value="0" data-channels="browInnerUp,browOuterUpLeft,browOuterUpRight"></label>
+      </div>
+      <details><summary>All facial controls <span>52</span></summary><label class="sr-only" for="channel">Facial control</label><select id="channel"></select><label class="channel-value">Strength <output id="channel-value">0%</output><input id="channel-strength" type="range" min="0" max="1" step=".01" value="0"></label></details>
+      <div class="panel-actions"><button id="demo"><img src="vendor/lucide/play.svg" alt="">Expression reel</button><button id="calibrate" disabled title="Calibrate neutral face"><img src="vendor/lucide/scan-face.svg" alt="">Calibrate</button></div>
+    </aside>
+    <div class="view-tools" role="group" aria-label="View controls">
+      <div class="segmented" aria-label="Body pose"><button data-pose="Seated" class="selected" title="Seated"><img src="vendor/lucide/armchair.svg" alt="">Seated</button><button data-pose="Standing" title="Standing"><img src="vendor/lucide/person-standing.svg" alt="">Standing</button><button data-pose="T-Pose" title="T-pose"><img src="vendor/lucide/box.svg" alt="">T-pose</button></div>
+      <div class="tool-group"><button id="reset-view" class="icon" title="Reset view" aria-label="Reset view"><img src="vendor/lucide/rotate-ccw.svg" alt=""></button><button id="screenshot" class="icon" title="Download image" aria-label="Download image"><img src="vendor/lucide/camera.svg" alt=""></button><button id="fullscreen" class="icon" title="Fullscreen" aria-label="Fullscreen"><img src="vendor/lucide/maximize.svg" alt=""></button><button id="panel-toggle" class="icon" title="Expression controls" aria-label="Expression controls" aria-expanded="false"><img src="vendor/lucide/sliders-horizontal.svg" alt=""></button></div>
+    </div>
+    <footer>
+      <div class="roster-heading"><span>CHOOSE YOUR CHARACTER</span><a id="download-model" href="assets/fleet/orbit.glb" download><img src="vendor/lucide/download.svg" alt="">Model</a></div>
+      <nav id="roster" aria-label="Characters"></nav>
+      <div class="footer-meta"><span>FLEET 001</span><span id="rig-status">Loading character</span></div>
+    </footer>
+    <div id="loading" role="status">Preparing the fleet...</div>
+    <div id="notice" role="alert" hidden></div>
+    <button id="camera-retry" hidden>Retry camera</button>
+    <div id="swap-cue" role="status" aria-label="Preparing character switch" hidden>
+      <img class="swap-arrow" src="vendor/lucide/arrow-left.svg" alt="">
+      <img src="vendor/lucide/hand.svg" alt="">
+      <img class="swap-arrow" src="vendor/lucide/arrow-right.svg" alt="">
+      <span class="swap-progress"></span>
+    </div>
+    <div id="mode-prompt" role="status" hidden></div>
+    <div id="dwell-cue" role="status" hidden>
+      <svg class="dwell-ring" viewBox="0 0 48 48" aria-hidden="true">
+        <circle class="dwell-track" cx="24" cy="24" r="21"></circle>
+        <circle class="dwell-fill" cx="24" cy="24" r="21"></circle>
+      </svg>
+      <img src="vendor/lucide/hand.svg" alt="">
+      <span class="dwell-label"></span>
+    </div>
+    <video id="camera-preview" autoplay playsinline muted hidden></video>
+    <dialog id="camera-framing" aria-labelledby="framing-title">
+      <div class="framing-heading"><h2 id="framing-title">Camera Framing</h2><button id="close-framing" class="icon small" title="Close camera framing" aria-label="Close camera framing"><img src="vendor/lucide/x.svg" alt=""></button></div>
+      <canvas aria-label="Full camera frame with arm tracking"></canvas>
+      <dl class="framing-readings"><div><dt>Capture</dt><dd data-capture>Camera off</dd></div><div><dt>Left arm</dt><dd data-arm="left">Not tracked</dd></div><div><dt>Right arm</dt><dd data-arm="right">Not tracked</dd></div></dl>
+    </dialog>
+  </main>
+  <script type="module" src="fleet.js"></script>
+</body>
+</html>

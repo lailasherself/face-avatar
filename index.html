@@ -1,11 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
     <title>Face Tracking Avatar</title>
     <style>
+        /* Bundled locally so the installation runs fully offline */
+        @font-face {
+            font-family: 'Baloo 2';
+            font-style: normal;
+            font-weight: 800;
+            font-display: swap;
+            src: url('vendor/fonts/baloo2-800.woff2') format('woff2');
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         #container { width: 100vw; height: 100vh; position: relative; }
@@ -109,8 +119,15 @@
         .model-btn.coming-soon:hover { transform: none; background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.2); }
 
         @media (max-width: 768px) {
-            #model-switcher { bottom: 10px; left: 10px; gap: 8px; }
-            .model-btn { width: 55px; height: 55px; font-size: 10px; }
+            #model-switcher {
+                bottom: 0; left: 0; right: 0; width: 100%;
+                gap: 8px; padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+                overflow-x: auto; -webkit-overflow-scrolling: touch;
+                flex-wrap: nowrap; justify-content: flex-start;
+                background: linear-gradient(to top, rgba(0,0,0,0.65), rgba(0,0,0,0));
+                z-index: 200;
+            }
+            .model-btn { flex: 0 0 auto; width: 64px; height: 64px; font-size: 11px; }
             .model-btn.coming-soon { display: none; }
             #face-placeholder .placeholder-icon { width: 80px; height: 80px; }
             #face-placeholder .placeholder-icon svg { width: 40px; height: 40px; }
@@ -121,9 +138,9 @@
         @media (max-width: 480px) {
             .bubble-text-top { font-size: clamp(24px, 5vw, 40px); top: 10px; }
             .bubble-text-bottom { font-size: clamp(36px, 8vw, 80px); bottom: 70px; }
-            #webcam-preview { width: 90px; height: 68px; bottom: 8px; right: 8px; }
-            #model-switcher { bottom: 8px; left: 8px; gap: 6px; }
-            .model-btn { width: 48px; height: 48px; font-size: 9px; border-radius: 10px; }
+            #webcam-preview { width: 90px; height: 68px; bottom: 84px; right: 8px; }
+            #model-switcher { bottom: 0; left: 0; right: 0; width: 100%; gap: 6px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); }
+            .model-btn { flex: 0 0 auto; width: 58px; height: 58px; font-size: 10px; border-radius: 10px; }
         }
 
         .bubble-text {
@@ -142,7 +159,92 @@
             .bubble-text-top { top: 15px; }
             .bubble-text-bottom { bottom: 80px; }
         }
-    </style>
+
+        /* ── Kiosk mode: hide all demo chrome from the public-facing display ── */
+        body.kiosk #status,
+        body.kiosk #webcam-preview,
+        body.kiosk #model-switcher { display: flex !important; }
+        body.kiosk #loading-subtext { visibility: hidden; }
+
+        /* ── Attract loop: cycling gallery of previous participants ── */
+        #attract {
+            position: absolute; inset: 0; z-index: 150;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(6,6,20,0.92);
+            opacity: 0; pointer-events: none; transition: opacity 0.8s ease;
+        }
+        #attract.visible { opacity: 1; }
+        #attract-gallery {
+            position: absolute; inset: 0; overflow: hidden;
+        }
+        #attract-gallery img {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            object-fit: cover; opacity: 0; transition: opacity 1.2s ease;
+        }
+        #attract-gallery img.show { opacity: 0.55; }
+        #attract-content {
+            position: relative; z-index: 2; text-align: center;
+            display: flex; flex-direction: column; align-items: center;
+            animation: attract-breathe 3.5s ease-in-out infinite;
+        }
+        @keyframes attract-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+        #attract-content .halo {
+            width: clamp(140px, 22vh, 260px); height: clamp(140px, 22vh, 260px);
+            border-radius: 50%; border: 4px dashed rgba(136,187,255,0.7);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 60px rgba(108,99,255,0.5), inset 0 0 40px rgba(108,99,255,0.3);
+            animation: spin 14s linear infinite;
+        }
+        #attract-content .halo svg { width: 45%; height: 45%; fill: rgba(200,220,255,0.85); animation: spin 14s linear infinite reverse; }
+        #attract-title {
+            margin-top: clamp(24px, 4vh, 48px);
+            font-family: 'Baloo 2', sans-serif; font-weight: 900; text-transform: uppercase;
+            color: #fff; letter-spacing: 0.06em;
+            font-size: clamp(36px, 7vw, 96px);
+            -webkit-text-stroke: 3px rgba(218,180,90,0.85); paint-order: stroke fill;
+            text-shadow: 0 0 20px rgba(218,180,90,0.6), 0 4px 0 rgba(160,120,40,0.5);
+        }
+        #attract-sub {
+            margin-top: clamp(8px, 1.5vh, 20px);
+            font-family: 'Baloo 2', sans-serif; font-weight: 800; text-transform: uppercase;
+            color: rgba(255,255,255,0.75); letter-spacing: 0.1em;
+            font-size: clamp(16px, 2.4vw, 34px);
+        }
+
+        /* ── Setup panel (hidden; press "S" on site to configure) ── */
+        #setup-panel {
+            position: absolute; top: 0; right: 0; height: 100%; width: 340px; max-width: 90vw;
+            background: rgba(12,14,30,0.96); z-index: 300; padding: 24px;
+            color: #eee; font-size: 14px; overflow-y: auto;
+            transform: translateX(100%); transition: transform 0.3s ease;
+            box-shadow: -8px 0 40px rgba(0,0,0,0.5);
+        }
+        #setup-panel.open { transform: translateX(0); }
+        #setup-panel h2 { font-size: 16px; margin-bottom: 4px; }
+        #setup-panel .hint { color: rgba(255,255,255,0.45); font-size: 12px; margin-bottom: 20px; }
+        #setup-panel label { display: block; margin: 18px 0 6px; color: rgba(255,255,255,0.7); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+        #setup-panel select, #setup-panel button {
+            width: 100%; padding: 10px 12px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06);
+            color: #fff; font-size: 14px; cursor: pointer;
+        }
+        #setup-panel button { margin-top: 10px; background: rgba(108,99,255,0.4); border-color: rgba(108,99,255,0.6); }
+        #setup-panel button.danger { background: rgba(255,82,82,0.25); border-color: rgba(255,82,82,0.5); }
+        #setup-panel .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+        #setup-panel .row span { color: rgba(255,255,255,0.7); }
+        #setup-close { position: absolute; top: 12px; right: 16px; background: none; border: none; width: auto; color: #fff; font-size: 24px; cursor: pointer; }
+            #calibrate-btn {
+            position: fixed; top: 12px; left: 12px; z-index: 200;
+            background: rgba(108,99,255,0.55); color: #fff; border: 2px solid rgba(255,255,255,0.35);
+            border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 700;
+            font-family: -apple-system, sans-serif; cursor: pointer; backdrop-filter: blur(4px);
+            transition: background 0.2s, transform 0.1s;
+        }
+        #calibrate-btn:hover { background: rgba(108,99,255,0.8); }
+        #calibrate-btn:active { transform: scale(0.96); }
+        #calibrate-btn:disabled { opacity: 0.7; cursor: default; }
+        body.kiosk #calibrate-btn { display: block !important; }
+</style>
 </head>
 <body>
     <div id="container">
@@ -159,8 +261,8 @@
             <div id="loading-subtext">Preparing face tracking</div>
         </div>
 
-        <div class="bubble-text bubble-text-top">YOU ARE OUT OF THIS</div>
-        <div class="bubble-text bubble-text-bottom">WORLD</div>
+        
+        
 
         <div id="status">Loading...</div>
 
@@ -171,10 +273,47 @@
             <div class="placeholder-text">Move your face into frame</div>
         </div>
 
+        <button id="calibrate-btn" onclick="startCalibration()">Calibrate</button>
+
         <div id="model-switcher">
-            <button class="model-btn active" data-model="alien.glb">Alien 1</button>
-            <button class="model-btn" data-model="alien2.glb">Alien 2</button>
-            <div class="model-btn coming-soon">+More</div>
+            <button class="model-btn active" data-model="vendor/green-alien-RIGGED.glb?v=1787344979">Green Alien</button>
+            <button class="model-btn" data-model="vendor/pink-alien-RIGGED.glb?v=1786629936">Pink Alien</button>
+            <a class="model-btn" href="cockpit.html" style="text-decoration:none">Full-body Fleet</a>
+        </div>
+
+        <!-- Attract loop: shown when nobody is in frame -->
+        <div id="attract">
+            <div id="attract-gallery"></div>
+            <div id="attract-content">
+                <div class="halo">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                </div>
+                <div id="attract-title">Step Up</div>
+                <div id="attract-sub">Become out of this world</div>
+            </div>
+        </div>
+
+        <!-- On-site setup panel: press "S" to open -->
+        <div id="setup-panel">
+            <button id="setup-close">&times;</button>
+            <h2>Installation Setup</h2>
+            <div class="hint">Press <b>S</b> to toggle · <b>K</b> to toggle kiosk chrome · <b>F</b> for fullscreen</div>
+
+            <label for="camera-select">Camera</label>
+            <select id="camera-select"></select>
+
+            <label for="model-select">Avatar</label>
+            <select id="model-select">
+                <option value="vendor/green-alien-RIGGED.glb?v=1787344979">Green Alien (blink + mouth)</option>
+                <option value="vendor/pink-alien-RIGGED.glb?v=1786629936">Pink Alien (blink + mouth)</option>
+            </select>
+
+            <div class="row"><span>Kiosk mode (hide chrome)</span><button id="toggle-kiosk" style="width:auto;padding:6px 14px;">On</button></div>
+            <div class="row"><span>Auto-capture gallery</span><button id="toggle-capture" style="width:auto;padding:6px 14px;">On</button></div>
+            <div class="row"><span>Saved snapshots</span><span id="capture-count">0</span></div>
+
+            <button id="enter-fullscreen">Enter Fullscreen</button>
+            <button id="clear-gallery" class="danger">Clear Saved Snapshots</button>
         </div>
 
         <div id="error-message"></div>
@@ -183,8 +322,8 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"
+            "three": "./vendor/three/three.module.js",
+            "three/addons/": "./vendor/three/addons/"
         }
     }
     </script>
@@ -192,7 +331,9 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { FaceLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs';
+        import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+        import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+        import { FaceLandmarker, FilesetResolver } from './vendor/mediapipe/vision_bundle.mjs';
 
         // ── Anamorphic depth illusion config ──
         const CONFIG = {
@@ -227,8 +368,41 @@
         const loadingSubtext = document.getElementById('loading-subtext');
         const statusElement = document.getElementById('status');
         const errorMessage = document.getElementById('error-message');
-        const modelButtons = document.querySelectorAll('.model-btn:not(.coming-soon)');
+        const modelButtons = document.querySelectorAll('.model-btn[data-model]:not(.coming-soon)');
         const facePlaceholder = document.getElementById('face-placeholder');
+
+        // ── Installation UI ──
+        const attractEl = document.getElementById('attract');
+        const attractGallery = document.getElementById('attract-gallery');
+        const setupPanel = document.getElementById('setup-panel');
+        const cameraSelect = document.getElementById('camera-select');
+        const modelSelect = document.getElementById('model-select');
+        const captureCountEl = document.getElementById('capture-count');
+        const toggleKioskBtn = document.getElementById('toggle-kiosk');
+        const toggleCaptureBtn = document.getElementById('toggle-capture');
+
+        // ── Installation config (persisted on the mini PC) ──
+        const STORE_KEY = 'faceAvatar.settings.v2';
+        const GALLERY_KEY = 'faceAvatar.gallery';
+        const settings = Object.assign(
+            { cameraId: '', kiosk: false, captureEnabled: true },
+            JSON.parse(localStorage.getItem(STORE_KEY) || '{}')
+        );
+        function saveSettings() { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); }
+
+        // ── Attract / capture state ──
+        const ATTRACT_DELAY_MS = 6000;   // idle time before the attract loop takes over
+        const CAPTURE_HOLD_MS = 2500;    // steady tracking required before we snapshot someone
+        const CAPTURE_COOLDOWN_MS = 4000;// min gap between snapshots of the same visitor
+        // ?preview shows the avatar without a live face (on-site setup / model checks).
+        const previewMode = new URLSearchParams(location.search).has('preview');
+        let attractActive = false;
+        let attractTimer = 0;
+        let faceStableSince = 0;
+        let capturedThisVisit = false;
+        let lastCaptureAt = 0;
+        let gallery = JSON.parse(localStorage.getItem(GALLERY_KEY) || '[]');
+        const MAX_GALLERY = 24;
 
         // ── Head tracking state ──
         let headX = 0, headY = 0, headZ = CONFIG.defaultDistanceCm;
@@ -244,7 +418,7 @@
         let animationTime = 0;
 
         // ── Avatar ──
-        let currentModelUrl = 'alien.glb';
+        let currentModelUrl = 'vendor/green-alien-RIGGED.glb?v=1787344979';
         let avatarModel = null;
         let headBone = null;
         let morphTargetMeshes = [];
@@ -264,6 +438,40 @@
         const smoothedBlendshapes = {};
         const smoothedRotation = { pitch: 0, yaw: 0, roll: 0 };
         const SMOOTHING_FACTOR = 0.5;
+
+        // --- Expression calibration + per-channel gain (inspired by gnm-webcam-puppet) ---
+        // neutralBlendshapes: the user's resting-face baseline, subtracted each frame so
+        // a resting face reads as zero expression. Populated by "Calibrate" button.
+        const neutralBlendshapes = {};
+        let calibrated = false;
+        let calibrateSamples = 0;
+        let calibrateAccum = {};
+        let calibrating = false;
+        // Per-channel GAIN: raw MediaPipe scores are often weak; multiply then clamp to [0,1].
+        // Tuned so a natural open-mouth / full blink drives the morph fully.
+        const EXPR_GAIN = {
+            jawOpen: 1.7,
+            eyeBlinkLeft: 1.6, eyeBlinkRight: 1.6,
+            mouthSmileLeft: 1.4, mouthSmileRight: 1.4,
+            mouthFunnel: 1.3, mouthPucker: 1.3,
+            browInnerUp: 1.3, browDownLeft: 1.3, browDownRight: 1.3,
+            cheekPuff: 1.4
+        };
+        // small dead-zone so tiny tracker jitter at rest doesn't twitch the face
+        const EXPR_DEADZONE = 0.04;
+        function calibratedScore(name, raw) {
+            let v = raw;
+            if (calibrated && neutralBlendshapes[name] !== undefined) {
+                // subtract baseline, renormalize the remaining range to [0,1]
+                const base = neutralBlendshapes[name];
+                v = (raw - base) / Math.max(0.0001, 1 - base);
+            }
+            if (v < EXPR_DEADZONE) v = 0;
+            const g = EXPR_GAIN[name] || 1.0;
+            v = v * g;
+            if (v < 0) v = 0; else if (v > 1) v = 1;
+            return v;
+        }
 
         const BLENDSHAPE_NAMES = [
             'eyeBlinkLeft', 'eyeBlinkRight', 'eyeSquintLeft', 'eyeSquintRight',
@@ -296,6 +504,36 @@
                 new THREE.Vector3(p2[0], p2[1], p2[2])
             ]);
             scene.add(new THREE.Line(geo, sharedLineMaterials[key]));
+        }
+
+
+        function buildStarfield() {
+            if (window.__starfield) return; // once
+            const g = new THREE.BufferGeometry();
+            const N = 1500;
+            const pos = new Float32Array(N*3);
+            const col = new Float32Array(N*3);
+            for (let i=0;i<N;i++){
+                // sphere shell around the avatar
+                const r = 40 + Math.random()*80;
+                const th = Math.random()*Math.PI*2;
+                const ph = Math.acos(2*Math.random()-1);
+                pos[i*3]   = r*Math.sin(ph)*Math.cos(th);
+                pos[i*3+1] = r*Math.sin(ph)*Math.sin(th)*0.6;
+                pos[i*3+2] = r*Math.cos(ph);
+                const b = 0.6+Math.random()*0.4;
+                // mostly white/blue-white stars, a few warm
+                const warm = Math.random()<0.12;
+                col[i*3]= b*(warm?1.0:0.8+Math.random()*0.2);
+                col[i*3+1]=b*(warm?0.9:0.85+Math.random()*0.15);
+                col[i*3+2]=b;
+            }
+            g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+            g.setAttribute('color', new THREE.BufferAttribute(col,3));
+            const m = new THREE.PointsMaterial({size:0.6, vertexColors:true, transparent:true, opacity:0.9, sizeAttenuation:true});
+            const pts = new THREE.Points(g,m);
+            window.__starfield = pts;
+            scene.add(pts);
         }
 
         function buildWireframeRoom() {
@@ -489,7 +727,7 @@
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, CONFIG.near, CONFIG.far);
             camera.position.set(0, 0, CONFIG.defaultDistanceCm);
 
-            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
             renderer.setClearColor(0x000000, 1);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -510,8 +748,8 @@
             rimLight.position.set(0, 0, -10);
             scene.add(rimLight);
 
-            buildWireframeRoom();
-            addWireframeObjects();
+            buildStarfield();
+            // addWireframeObjects(); // removed for clean space bg
 
             window.addEventListener('resize', () => {
                 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -536,16 +774,47 @@
         //  AVATAR LOADING
         // ═══════════════════════════════════════
 
+        // ARKit-rigged avatars (e.g. facecap.glb) are meshopt-compressed with KTX2
+        // textures, so the loader needs both decoders. Created lazily once.
+        let ktx2Loader = null;
+        function getKTX2Loader() {
+            if (!ktx2Loader) {
+                ktx2Loader = new KTX2Loader()
+                    .setTranscoderPath('./vendor/three/addons/libs/basis/')
+                    .detectSupport(renderer);
+            }
+            return ktx2Loader;
+        }
+
+        // MediaPipe emits blendshapes like "eyeBlinkLeft"; some rigs (facecap) name
+        // them "eyeBlink_L". Resolve whichever spelling the model actually has.
+        function morphKeyFor(dict, name) {
+            if (dict[name] !== undefined) return name;
+            const alt = name.replace(/Left$/, '_L').replace(/Right$/, '_R');
+            if (dict[alt] !== undefined) return alt;
+            return undefined;
+        }
+
         async function loadGLBModel(fileOrUrl) {
             showLoading('Loading Avatar', 'Preparing your alien companion...');
             const loader = new GLTFLoader();
+            loader.setMeshoptDecoder(MeshoptDecoder);
+            loader.setKTX2Loader(getKTX2Loader());
             const isFile = fileOrUrl instanceof File;
             const url = isFile ? URL.createObjectURL(fileOrUrl) : fileOrUrl;
 
             try {
                 const gltf = await new Promise((resolve, reject) => {
-                    loader.load(url, resolve, undefined, reject);
+                    loader.load(url, resolve, (xhr) => {
+                        if (xhr && xhr.total) {
+                            const pct = Math.round((xhr.loaded / xhr.total) * 100);
+                            showLoading('Loading Avatar', 'Downloading ' + pct + '%');
+                        } else if (xhr && xhr.loaded) {
+                            showLoading('Loading Avatar', 'Downloading ' + Math.round(xhr.loaded/1e6) + ' MB');
+                        }
+                    }, reject);
                 });
+                showLoading('Loading Avatar', 'Preparing meshes...');
 
                 if (avatarModel) scene.remove(avatarModel);
                 avatarModel = gltf.scene;
@@ -558,11 +827,12 @@
                     if (child.isMesh && child.morphTargetInfluences && child.morphTargetDictionary) {
                         morphTargetMeshes.push(child);
                         for (const name of BLENDSHAPE_NAMES) {
-                            if (child.morphTargetDictionary[name] !== undefined) {
+                            const key = morphKeyFor(child.morphTargetDictionary, name);
+                            if (key !== undefined) {
                                 if (!morphTargetIndices[name]) morphTargetIndices[name] = [];
                                 morphTargetIndices[name].push({
                                     mesh: child,
-                                    index: child.morphTargetDictionary[name]
+                                    index: child.morphTargetDictionary[key]
                                 });
                             }
                         }
@@ -579,8 +849,24 @@
 
                 if (!headBone) headBone = avatarModel;
 
-                // Scale and position alien inside wireframe room
-                const box = new THREE.Box3().setFromObject(avatarModel);
+                // ✨ COSMIC CHARACTER STYLING (cosmic-character branch)
+                if (COSMIC.enabled) applyCosmicStyle(avatarModel);
+
+                // Full-body avatars (Ready Player Me style) → frame as a floating head:
+                // hide body/outfit meshes so only the head + eyes + teeth + hair remain.
+                const bodyRe = /body|outfit|footwear|shoe/i;
+                let hasBody = false;
+                avatarModel.traverse((c) => { if (c.isMesh && bodyRe.test(c.name)) hasBody = true; });
+                if (hasBody) {
+                    avatarModel.traverse((c) => { if (c.isMesh && bodyRe.test(c.name)) c.visible = false; });
+                }
+
+                // Scale and position inside wireframe room. Frame on the *visible* meshes,
+                // so a full-body avatar frames on its head rather than the whole body.
+                avatarModel.updateWorldMatrix(true, true);
+                const box = new THREE.Box3();
+                avatarModel.traverse((c) => { if (c.isMesh && c.visible && c.geometry) box.expandByObject(c); });
+                if (box.isEmpty()) box.setFromObject(avatarModel);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
@@ -592,10 +878,17 @@
                 avatarModel.position.z = -center.z * scale + CONFIG.alienDepth;
 
                 const morphCount = Object.keys(morphTargetIndices).length;
-                if (morphCount === 0) {
+                try {
+                    const hud=document.getElementById('rigdebug');
+                    if(hud){
+                        const names=Object.keys(morphTargetIndices);
+                        hud.textContent='rig morphs: '+morphCount+'\n'+names.join(', ')+'\nmeshes with morphs: '+morphTargetMeshes.length;
+                    }
+                } catch(e){}
+                if (morphCount === 0 && morphTargetMeshes.length === 0) {
                     setupProceduralAnimation();
                 } else {
-                    proceduralMeshes = [];
+                    proceduralMeshes = [];  // rig has real morph targets; never jiggle
                 }
 
                 avatarModel.visible = false;
@@ -604,6 +897,12 @@
                 showFacePlaceholder(true);
                 updateStatus('Move into frame to activate avatar');
                 statusElement.className = '';
+
+                if (previewMode) {
+                    avatarModel.visible = true;
+                    avatarVisible = true;
+                    showFacePlaceholder(false);
+                }
 
                 hideLoading();
                 if (isFile) URL.revokeObjectURL(url);
@@ -625,11 +924,11 @@
             showLoading('Initializing Face Tracking', 'Setting up AI-powered detection...');
             try {
                 const filesetResolver = await FilesetResolver.forVisionTasks(
-                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm'
+                    './vendor/mediapipe/wasm'
                 );
                 faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
                     baseOptions: {
-                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+                        modelAssetPath: './vendor/mediapipe/model/face_landmarker.task',
                         delegate: 'GPU'
                     },
                     outputFaceBlendshapes: true,
@@ -647,20 +946,63 @@
             }
         }
 
+        let webcamRetryTimer = null;
         async function startWebcam() {
             try {
-                videoStream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
-                });
+                if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+
+                const video = { width: { ideal: 640 }, height: { ideal: 480 } };
+                if (settings.cameraId) video.deviceId = { exact: settings.cameraId };
+                else video.facingMode = 'user';
+
+                videoStream = await navigator.mediaDevices.getUserMedia({ video });
                 webcamPreview.srcObject = videoStream;
                 await webcamPreview.play();
                 webcamPreview.className = 'visible';
                 updateStatus('Face tracking active');
                 statusElement.className = 'good';
+
+                // Auto-recover if the (possibly external / outdoor) camera drops out.
+                videoStream.getVideoTracks().forEach(track => {
+                    track.addEventListener('ended', scheduleWebcamRecovery);
+                });
+
+                await populateCameraList();
             } catch (error) {
                 console.error('Error starting webcam:', error);
-                showError('Webcam unavailable — using mouse fallback');
+                // A remembered device may have been unplugged — fall back to the default camera.
+                if (settings.cameraId) {
+                    console.warn('Selected camera failed, falling back to default');
+                    settings.cameraId = ''; saveSettings();
+                    return startWebcam();
+                }
+                showError('Camera unavailable — retrying…');
+                scheduleWebcamRecovery();
             }
+        }
+
+        function scheduleWebcamRecovery() {
+            if (webcamRetryTimer) return;
+            updateStatus('Camera lost — reconnecting…');
+            statusElement.className = 'bad';
+            webcamRetryTimer = setTimeout(async () => {
+                webcamRetryTimer = null;
+                await startWebcam();
+            }, 3000);
+        }
+
+        async function populateCameraList() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cams = devices.filter(d => d.kind === 'videoinput');
+            cameraSelect.innerHTML = '';
+            cams.forEach((cam, i) => {
+                const opt = document.createElement('option');
+                opt.value = cam.deviceId;
+                opt.textContent = cam.label || `Camera ${i + 1}`;
+                cameraSelect.appendChild(opt);
+            });
+            if (settings.cameraId) cameraSelect.value = settings.cameraId;
         }
 
         // ═══════════════════════════════════════
@@ -668,6 +1010,7 @@
         // ═══════════════════════════════════════
 
         function processFaceTracking() {
+            if (previewMode) { if (avatarModel) avatarModel.visible = true; return; }
             if (!faceLandmarker || !webcamPreview.videoWidth) return;
 
             const currentTime = webcamPreview.currentTime;
@@ -708,6 +1051,15 @@
 
                 if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
                     applyBlendshapes(results.faceBlendshapes[0].categories);
+                    try {
+                        const hud=document.getElementById('rigdebug');
+                        if(hud){
+                            const j=(smoothedBlendshapes['jawOpen']||0).toFixed(2);
+                            const bl=(smoothedBlendshapes['eyeBlinkLeft']||0).toFixed(2);
+                            const br=(smoothedBlendshapes['eyeBlinkRight']||0).toFixed(2);
+                            hud.textContent='LIVE  jawOpen='+j+'  blinkL='+bl+'  blinkR='+br;
+                        }
+                    } catch(e){}
                     if (proceduralMeshes.length > 0) applyProceduralDeformation();
                 }
 
@@ -767,6 +1119,53 @@
         }
 
         // ═══════════════════════════════════════
+        //  ✨ COSMIC CHARACTER STYLING
+        // ═══════════════════════════════════════
+        const COSMIC = {
+            enabled: false,
+            skin:      new THREE.Color(0x6d4bff),  // nebula violet base tint
+            glow:      new THREE.Color(0x8fd3ff),  // cyan celestial rim glow
+            emissive:  0.35,   // how much inner glow
+            rimPower:  2.2,    // fresnel falloff (higher = thinner rim)
+            rimStrength: 1.4,
+        };
+
+        function applyCosmicStyle(root) {
+            root.traverse((child) => {
+                if (!child.isMesh || !child.material) return;
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach((mat) => {
+                    if (mat.userData.__cosmic) return;
+                    mat.userData.__cosmic = true;
+                    // nebula tint + inner emissive
+                    if (mat.color) mat.color.lerp(COSMIC.skin, 0.35);
+                    if ('emissive' in mat) {
+                        mat.emissive = COSMIC.skin.clone();
+                        mat.emissiveIntensity = COSMIC.emissive;
+                    }
+                    // fresnel rim glow via onBeforeCompile
+                    mat.onBeforeCompile = (shader) => {
+                        shader.uniforms.uRimColor = { value: COSMIC.glow };
+                        shader.uniforms.uRimPower = { value: COSMIC.rimPower };
+                        shader.uniforms.uRimStrength = { value: COSMIC.rimStrength };
+                        shader.fragmentShader = shader.fragmentShader
+                          .replace('#include <common>',
+                            '#include <common>\nuniform vec3 uRimColor;\nuniform float uRimPower;\nuniform float uRimStrength;\nvarying vec3 vCosmicNormal;\nvarying vec3 vCosmicView;')
+                          .replace('#include <output_fragment>',
+                            'float rim = pow(1.0 - max(dot(normalize(vCosmicNormal), normalize(vCosmicView)), 0.0), uRimPower);\ngl_FragColor.rgb += uRimColor * rim * uRimStrength;\n#include <output_fragment>');
+                        shader.vertexShader = shader.vertexShader
+                          .replace('#include <common>',
+                            '#include <common>\nvarying vec3 vCosmicNormal;\nvarying vec3 vCosmicView;')
+                          .replace('#include <begin_vertex>',
+                            '#include <begin_vertex>\nvCosmicNormal = normalize(normalMatrix * normal);\nvCosmicView = normalize(-(modelViewMatrix * vec4(transformed,1.0)).xyz);');
+                        mat.userData.__shader = shader;
+                    };
+                    mat.needsUpdate = true;
+                });
+            });
+        }
+
+        // ═══════════════════════════════════════
         //  AVATAR VISIBILITY
         // ═══════════════════════════════════════
 
@@ -818,9 +1217,17 @@
         // ═══════════════════════════════════════
 
         function applyBlendshapes(categories) {
+            // If calibrating, accumulate raw scores to compute the neutral baseline.
+            if (calibrating) {
+                for (const cat of categories) {
+                    calibrateAccum[cat.categoryName] = (calibrateAccum[cat.categoryName] || 0) + cat.score;
+                }
+                calibrateSamples++;
+            }
             for (const cat of categories) {
                 const name = cat.categoryName;
-                const score = cat.score;
+                // apply neutral-subtraction + per-channel gain BEFORE smoothing
+                const score = calibratedScore(name, cat.score);
                 if (smoothedBlendshapes[name] === undefined) smoothedBlendshapes[name] = score;
                 else smoothedBlendshapes[name] = smoothedBlendshapes[name] * (1 - SMOOTHING_FACTOR) + score * SMOOTHING_FACTOR;
 
@@ -831,6 +1238,22 @@
                 }
             }
         }
+
+        // Capture ~1s of the user's resting face and store it as the neutral baseline.
+        function startCalibration() {
+            calibrating = true; calibrateSamples = 0; calibrateAccum = {};
+            const btn = document.getElementById('calibrate-btn');
+            if (btn) { btn.textContent = 'Hold still…'; btn.disabled = true; }
+            setTimeout(() => {
+                calibrating = false;
+                if (calibrateSamples > 0) {
+                    for (const k in calibrateAccum) neutralBlendshapes[k] = calibrateAccum[k] / calibrateSamples;
+                    calibrated = true;
+                }
+                if (btn) { btn.textContent = 'Recalibrate'; btn.disabled = false; }
+            }, 1000);
+        }
+        window.startCalibration = startCalibration;
 
         function applyHeadRotation(matrix) {
             if (!headBone) return;
@@ -983,6 +1406,118 @@
         }
 
         // ═══════════════════════════════════════
+        //  SNAPSHOT CAPTURE + ATTRACT GALLERY
+        // ═══════════════════════════════════════
+
+        // Downscale the live 3D canvas to a lightweight JPEG for the cycling gallery.
+        function snapshotComposite() {
+            const src = renderer.domElement;
+            if (!src.width) return null;
+            const targetW = 640;
+            const scale = targetW / src.width;
+            const c = document.createElement('canvas');
+            c.width = targetW;
+            c.height = Math.round(src.height * scale);
+            const ctx = c.getContext('2d');
+            ctx.drawImage(src, 0, 0, c.width, c.height);
+            try {
+                return c.toDataURL('image/jpeg', 0.72);
+            } catch (e) {
+                console.warn('Snapshot failed', e);
+                return null;
+            }
+        }
+
+        function captureVisitor() {
+            if (!settings.captureEnabled) return;
+            const data = snapshotComposite();
+            if (!data) return;
+            gallery.push(data);
+            while (gallery.length > MAX_GALLERY) gallery.shift();
+            persistGallery();
+            capturedThisVisit = true;
+            lastCaptureAt = performance.now();
+        }
+
+        // localStorage can overflow with many images — trim oldest until it fits.
+        function persistGallery() {
+            for (;;) {
+                try {
+                    localStorage.setItem(GALLERY_KEY, JSON.stringify(gallery));
+                    break;
+                } catch (e) {
+                    if (gallery.length <= 1) { gallery = []; localStorage.removeItem(GALLERY_KEY); break; }
+                    gallery.shift();
+                }
+            }
+            if (captureCountEl) captureCountEl.textContent = gallery.length;
+        }
+
+        // Cross-fade through saved snapshots while in attract mode.
+        let galleryImgA, galleryImgB, galleryIndex = 0, galleryFront = null, galleryTimer = 0;
+        function initGalleryImgs() {
+            galleryImgA = document.createElement('img');
+            galleryImgB = document.createElement('img');
+            attractGallery.appendChild(galleryImgA);
+            attractGallery.appendChild(galleryImgB);
+        }
+        function advanceGallery() {
+            if (gallery.length === 0) return;
+            const next = galleryFront === galleryImgA ? galleryImgB : galleryImgA;
+            const front = galleryFront === galleryImgA ? galleryImgA : (galleryFront === galleryImgB ? galleryImgB : null);
+            next.src = gallery[galleryIndex % gallery.length];
+            galleryIndex++;
+            next.classList.add('show');
+            if (front) front.classList.remove('show');
+            galleryFront = next;
+        }
+
+        function setAttract(active) {
+            if (active === attractActive) return;
+            attractActive = active;
+            attractEl.classList.toggle('visible', active);
+            if (active) {
+                galleryIndex = 0; galleryTimer = 0;
+                if (gallery.length) advanceGallery();
+            } else {
+                if (galleryImgA) galleryImgA.classList.remove('show');
+                if (galleryImgB) galleryImgB.classList.remove('show');
+                galleryFront = null;
+            }
+        }
+
+        // Called every frame to drive attract/capture timing.
+        function updateInstallation(now) {
+            if (previewMode) return; // static preview: no attract loop, no auto-capture
+            // Enter attract mode after a stretch with no face; leave the instant someone appears.
+            if (faceDetected) {
+                attractTimer = now;
+                if (attractActive) setAttract(false);
+
+                // Auto-capture once the visitor holds steady.
+                if (settings.captureEnabled && avatarVisible) {
+                    if (!faceStableSince) faceStableSince = now;
+                    if (!capturedThisVisit &&
+                        now - faceStableSince > CAPTURE_HOLD_MS &&
+                        now - lastCaptureAt > CAPTURE_COOLDOWN_MS) {
+                        captureVisitor();
+                    }
+                } else {
+                    faceStableSince = 0;
+                }
+            } else {
+                faceStableSince = 0;
+                capturedThisVisit = false; // reset so the next visitor gets captured
+                if (!attractActive && now - attractTimer > ATTRACT_DELAY_MS) setAttract(true);
+            }
+
+            if (attractActive && gallery.length > 1) {
+                galleryTimer += 0.016;
+                if (galleryTimer > 3.5) { galleryTimer = 0; advanceGallery(); }
+            }
+        }
+
+        // ═══════════════════════════════════════
         //  ANIMATION LOOP
         // ═══════════════════════════════════════
 
@@ -992,6 +1527,7 @@
 
             updateOffAxisProjection();
             processFaceTracking();
+            updateInstallation(performance.now());
 
             // Animate wireframe objects with rotation and floating
             for (let i = 0; i < wireframeObjects.length; i++) {
@@ -1064,15 +1600,91 @@
         });
 
         // ═══════════════════════════════════════
+        //  SETUP PANEL + KIOSK CONTROLS
+        // ═══════════════════════════════════════
+
+        function applyKiosk() {
+            document.body.classList.toggle('kiosk', settings.kiosk);
+            if (toggleKioskBtn) toggleKioskBtn.textContent = settings.kiosk ? 'On' : 'Off';
+        }
+        function applyCaptureToggle() {
+            if (toggleCaptureBtn) toggleCaptureBtn.textContent = settings.captureEnabled ? 'On' : 'Off';
+        }
+
+        function setupPanelControls() {
+            document.getElementById('setup-close').addEventListener('click', () => setupPanel.classList.remove('open'));
+
+            cameraSelect.addEventListener('change', async () => {
+                settings.cameraId = cameraSelect.value; saveSettings();
+                await startWebcam();
+            });
+
+            modelSelect.value = currentModelUrl;
+            modelSelect.addEventListener('change', () => switchModel(modelSelect.value));
+
+            toggleKioskBtn.addEventListener('click', () => { settings.kiosk = !settings.kiosk; saveSettings(); applyKiosk(); });
+            toggleCaptureBtn.addEventListener('click', () => { settings.captureEnabled = !settings.captureEnabled; saveSettings(); applyCaptureToggle(); });
+
+            document.getElementById('enter-fullscreen').addEventListener('click', enterFullscreen);
+            document.getElementById('clear-gallery').addEventListener('click', () => {
+                gallery = []; persistGallery();
+                if (galleryImgA) galleryImgA.classList.remove('show');
+                if (galleryImgB) galleryImgB.classList.remove('show');
+                galleryFront = null;
+            });
+
+            applyKiosk();
+            applyCaptureToggle();
+            captureCountEl.textContent = gallery.length;
+        }
+
+        function enterFullscreen() {
+            const el = document.documentElement;
+            if (document.fullscreenElement) document.exitFullscreen();
+            else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+        }
+
+        // Hidden keyboard shortcuts for on-site operators.
+        document.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 's') setupPanel.classList.toggle('open');
+            else if (k === 'k') { settings.kiosk = !settings.kiosk; saveSettings(); applyKiosk(); }
+            else if (k === 'f') enterFullscreen();
+        });
+
+        // Keep the on-screen model buttons and the setup dropdown in sync.
+        const _switchModel = switchModel;
+        switchModel = async function(url) {
+            if (modelSelect) modelSelect.value = url;
+            await _switchModel(url);
+        };
+
+        // ═══════════════════════════════════════
         //  INIT
         // ═══════════════════════════════════════
 
         async function init() {
             initThreeJS();
             enableMouseFallback();
+            initGalleryImgs();
+
+            // Optional ?avatar= to preselect an avatar by name or path
+            // (e.g. ?avatar=character, or combine with ?preview to see it without a face).
+            const avatarParam = new URLSearchParams(location.search).get('avatar');
+            if (avatarParam) {
+                const map = {
+                    green: 'vendor/green-alien-RIGGED.glb?v=1787344979',
+                    pink: 'vendor/pink-alien-RIGGED.glb?v=1786629936',
+                    alien: 'vendor/green-alien-RIGGED.glb?v=1787344979'
+                };
+                currentModelUrl = map[avatarParam.toLowerCase()] || avatarParam;
+                modelButtons.forEach(b => b.classList.toggle('active', b.dataset.model === currentModelUrl));
+            }
+
+            setupPanelControls();
             animate();
 
-            await loadGLBModel('alien.glb');
+            await loadGLBModel(currentModelUrl);
             await initFaceLandmarker();
             if (faceLandmarker && avatarModel) await startWebcam();
         }

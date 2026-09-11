@@ -12,3 +12,11 @@ Thumbs.db
 # Logs
 *.log
 .vercel
+
+# Machine-local context, credentials and generated Python caches
+.context/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]

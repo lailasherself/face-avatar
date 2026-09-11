@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "status": "local Blender review roster; not production-approved",
+  "vehicle": null,
+  "characters": [
+    {
+      "id": "coral",
+      "name": "Coral",
+      "url": "assets/3dai/refined/coral.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/coral.png",
+      "bones": 42,
+      "sourceTaskId": "f852429a-8c8c-439a-b073-02fefb4e9421",
+      "reference": "nkmqsW"
+    },
+    {
+      "id": "cosmic",
+      "name": "Cosmic",
+      "url": "assets/local-characters/cosmic.glb",
+      "thumbnail": "assets/local-characters/thumbnails/cosmic.png",
+      "status": "review-only"
+    },
+    {
+      "id": "nebula",
+      "name": "Nebula",
+      "url": "assets/local-characters/nebula.glb",
+      "thumbnail": "assets/local-characters/thumbnails/nebula.png",
+      "status": "review-only"
+    },
+    {
+      "id": "kudzu",
+      "name": "Kudzu",
+      "url": "assets/local-characters/kudzu.glb",
+      "thumbnail": "assets/local-characters/thumbnails/kudzu.png",
+      "status": "review-only"
+    },
+    {
+      "id": "clay",
+      "name": "Clay",
+      "url": "assets/local-characters/clay.glb",
+      "thumbnail": "assets/local-characters/thumbnails/clay.png",
+      "status": "review-only"
+    },
+    {
+      "id": "summer",
+      "name": "Summer",
+      "url": "assets/local-characters/summer.glb",
+      "thumbnail": "assets/local-characters/thumbnails/summer.png",
+      "status": "review-only"
+    },
+    {
+      "id": "glass",
+      "name": "Glass",
+      "url": "assets/local-characters/glass.glb",
+      "thumbnail": "assets/local-characters/thumbnails/glass.png",
+      "status": "review-only"
+    },
+    {
+      "id": "orbit",
+      "name": "Orbit",
+      "url": "assets/3dai/refined/orbit.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/orbit.png",
+      "bones": 42,
+      "sourceTaskId": "32162e04-483e-4d62-82b3-984296472ce0",
+      "reference": "Jy8yzW"
+    }
+  ]
+}

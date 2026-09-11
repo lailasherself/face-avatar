@@ -1,0 +1,94 @@
+{
+  "characters": [
+    {
+      "name": "orbit",
+      "task_id": "32162e04-483e-4d62-82b3-984296472ce0",
+      "reference": "Jy8yzW",
+      "reason": "Original retains purple skin and dark lips; retexture changes lips to orange.",
+      "original": "assets/3dai/originals/32162e04-483e-4d62-82b3-984296472ce0.glb",
+      "preview": "assets/3dai/previews/32162e04-483e-4d62-82b3-984296472ce0.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "pearl",
+      "task_id": "1d7d7a55-79a5-41d7-b840-c2b85577625b",
+      "reference": "kMxwme",
+      "reason": "Original retains iridescent eye, orange lips and fingertips; tail silhouette needs inspection.",
+      "original": "assets/3dai/originals/1d7d7a55-79a5-41d7-b840-c2b85577625b.glb",
+      "preview": "assets/3dai/previews/1d7d7a55-79a5-41d7-b840-c2b85577625b.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "juno",
+      "task_id": "cd161e78-226d-49ed-84bb-57d764dda6f7",
+      "reference": "bjWgsy",
+      "reason": "Hunyuan version retains pink upper body, orange legs, yellow single eye and black antenna tips.",
+      "original": "assets/3dai/originals/cd161e78-226d-49ed-84bb-57d764dda6f7.glb",
+      "preview": "assets/3dai/previews/cd161e78-226d-49ed-84bb-57d764dda6f7.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "fuzz",
+      "task_id": "f133eee2-d6db-4ec6-b341-940d7aad2fcb",
+      "reference": "UnGowG",
+      "reason": "Hunyuan version retains ribbed limbs and yellow sneakers; sculpted hair is solid geometry.",
+      "original": "assets/3dai/originals/f133eee2-d6db-4ec6-b341-940d7aad2fcb.glb",
+      "preview": "assets/3dai/previews/f133eee2-d6db-4ec6-b341-940d7aad2fcb.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "clementine",
+      "task_id": "1536b59f-56ba-4096-9823-eda7cf44d099",
+      "reference": "zF0uXa",
+      "reason": "Original retains lilac knit hat, orange jacket and two-tone sneakers; retexture changes footwear.",
+      "original": "assets/3dai/originals/1536b59f-56ba-4096-9823-eda7cf44d099.glb",
+      "preview": "assets/3dai/previews/1536b59f-56ba-4096-9823-eda7cf44d099.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "coral",
+      "task_id": "f852429a-8c8c-439a-b073-02fefb4e9421",
+      "reference": "nkmqsW",
+      "reason": "Original matches the rose crowned character and retains the blue pupils. Best first facial construction candidate.",
+      "original": "assets/3dai/originals/f852429a-8c8c-439a-b073-02fefb4e9421.glb",
+      "preview": "assets/3dai/previews/f852429a-8c8c-439a-b073-02fefb4e9421.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "sprout",
+      "task_id": "5220d255-53e9-4679-9347-75eb310f6994",
+      "reference": "8KA2yn",
+      "reason": "Original retains black pupils, cracked skin and beanie lettering; retexture loses key details.",
+      "original": "assets/3dai/originals/5220d255-53e9-4679-9347-75eb310f6994.glb",
+      "preview": "assets/3dai/previews/5220d255-53e9-4679-9347-75eb310f6994.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "atl",
+      "task_id": "68b47717-cbeb-4987-b9e2-c3306e38c161",
+      "reference": "ppDO39",
+      "reason": "Full-body version matches baseball uniform, cap and green skin.",
+      "original": "assets/3dai/originals/68b47717-cbeb-4987-b9e2-c3306e38c161.glb",
+      "preview": "assets/3dai/previews/68b47717-cbeb-4987-b9e2-c3306e38c161.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "vehicle",
+      "task_id": "987d6edd-f31d-4c5e-bff3-53ca15dd4188",
+      "reference": "4B64Zq",
+      "reason": "Retextured version has metallic/roughness and normal maps, silver hull and tinted windshield.",
+      "original": "assets/3dai/originals/987d6edd-f31d-4c5e-bff3-53ca15dd4188.glb",
+      "preview": "assets/3dai/previews/987d6edd-f31d-4c5e-bff3-53ca15dd4188.png",
+      "status": "selected-for-inspection"
+    },
+    {
+      "name": "vehicle_original",
+      "task_id": "c179f298-5af8-4a53-9877-0ca0a6403bdd",
+      "reference": "4B64Zq",
+      "reason": "Original vehicle alternate, useful for shape and material comparison.",
+      "original": "assets/3dai/originals/c179f298-5af8-4a53-9877-0ca0a6403bdd.glb",
+      "preview": "assets/3dai/previews/c179f298-5af8-4a53-9877-0ca0a6403bdd.png",
+      "status": "selected-for-inspection"
+    }
+  ]
+}
