@@ -19,4 +19,37 @@ test('tongue clears closing lips and does not inherit lip distortion',()=>{
  assert.equal(oralWeight('tongueOut',1,'Juno tongue'),1);
  assert.equal(oralWeight('jawOpen',.4,'Juno oral interior'),.4);
  assert.equal(oralWeight('mouthFunnel',.5,'skin'),.5);
+ assert.equal(oralWeight('mouthUpperUpLeft',.32,'Orbit Oral interior'),.32);
+ assert.equal(oralWeight('mouthLowerDownRight',.12,'Coral Oral interior'),.12);
+ assert.equal(oralWeight('mouthUpperUpLeft',.32,'Orbit tongue'),0);
+ assert.equal(oralWeight('mouthSmileLeft',.8,'Orbit Oral interior'),.8);
+});
+
+test('a bilateral smile exposes teeth without requiring a large tracked jaw opening',()=>{
+ const smile=resolveMouth({mouthSmileLeft:.8,mouthSmileRight:.8,jawOpen:.04,mouthUpperUpLeft:.25,mouthUpperUpRight:.25});
+ assert.equal(smile.jawOpen,.32);
+ assert(Math.abs(smile.mouthUpperUpLeft-.546)<1e-10);assert.equal(smile.mouthUpperUpRight,smile.mouthUpperUpLeft);
+ assert.equal(smile.mouthSmileLeft,.8);assert.equal(smile.mouthSmileRight,.8);
+ const talking=resolveMouth({mouthSmileLeft:1,mouthSmileRight:1,jawOpen:.8});
+ assert.equal(talking.jawOpen,.8,'do not limit a genuinely open jaw');
+});
+
+test('smile clearance stays neutral for rest, one-sided smirks and deliberate closed lips',()=>{
+ for(const extra of [{mouthClose:1},{mouthPressLeft:1},{mouthRollUpper:1},{mouthPucker:1},{mouthFunnel:1}]){
+  const v=resolveMouth({mouthSmileLeft:1,mouthSmileRight:1,...extra});
+  assert.equal(v.jawOpen-v.mouthClose,0);assert.equal(v.mouthUpperUpLeft,0);
+ }
+ for(const input of [{},{mouthSmileLeft:.1,mouthSmileRight:.1},{mouthSmileLeft:1}]){
+  const v=resolveMouth(input);assert.equal(v.jawOpen,0);assert.equal(v.mouthUpperUpLeft,0);
+ }
+ const tongue=resolveMouth({mouthSmileLeft:1,mouthSmileRight:1,tongueOut:1});
+ assert.equal(tongue.jawOpen,.65);assert.equal(tongue.mouthUpperUpLeft,0);
+});
+
+test('smile reveal ramps continuously instead of snapping the jaw open',()=>{
+ let previous=0;
+ for(let i=0;i<=100;i++){
+  const v=resolveMouth({mouthSmileLeft:i/100,mouthSmileRight:i/100});
+  assert(v.jawOpen>=previous);assert(v.jawOpen-previous<.008);previous=v.jawOpen;
+ }
 });

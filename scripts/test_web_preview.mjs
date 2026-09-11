@@ -22,6 +22,11 @@ test('preview includes tracking workers, binaries and every selectable roster', 
   }
   for (const path of files.filter(f => f.endsWith('/manifest.json'))) {
     const manifest = JSON.parse(readFileSync(new URL(`../${path}`, import.meta.url)));
+    assert(!manifest.characters.some(c => c.id === 'coral'), path + ': Coral must stay paused');
+    for (const character of manifest.pausedCharacters || []) {
+      assert(!files.includes(character.url), 'Paused model must not be published');
+      assert(!files.includes(character.thumbnail), 'Paused thumbnail must not be published');
+    }
     for (const character of manifest.characters) {
       assert(files.includes(character.url));
       assert(files.includes(character.thumbnail));

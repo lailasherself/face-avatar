@@ -11,7 +11,7 @@
       "reference": "8gfKpO",
       "url": "assets/likeness-trials/orbit-image-rig.glb",
       "thumbnail": "assets/likeness-trials/thumbnails/orbit-image.png",
-      "revision": "reference_material_refinement_2"
+      "revision": "reference_painted_sculpt_4"
     },
     {
       "id": "cosmic",
@@ -42,16 +42,6 @@
       "revision": "reference_rig_review"
     },
     {
-      "id": "coral",
-      "name": "Coral",
-      "bones": 18,
-      "sourceMethod": "supplied_image_contour_blender",
-      "reference": "ZWD70v",
-      "url": "assets/likeness-trials/coral-image-rig.glb",
-      "thumbnail": "assets/likeness-trials/thumbnails/coral-image.png",
-      "revision": "reference_material_refinement_2"
-    },
-    {
       "id": "summer",
       "name": "Summer",
       "url": "assets/likeness-trials/summer-body-rig.glb",
@@ -64,6 +54,18 @@
       "url": "assets/likeness-trials/glass-body-rig.glb",
       "thumbnail": "assets/likeness-trials/thumbnails/glass.png",
       "revision": "reference_rig_review"
+    }
+  ],
+  "pausedCharacters": [
+    {
+      "id": "coral",
+      "name": "Coral",
+      "bones": 18,
+      "sourceMethod": "supplied_image_contour_blender",
+      "reference": "ZWD70v",
+      "url": "assets/likeness-trials/coral-image-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/coral-image.png",
+      "revision": "reference_painted_sculpt_4"
     }
   ]
 }

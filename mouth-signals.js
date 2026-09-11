@@ -11,7 +11,14 @@ export function resolveMouth(values){
   // simulations. Share a deformation budget rather than adding several full poses.
   const round=get('mouthFunnel')+get('mouthPucker'),roundScale=round>.8?.8/round:1;
   const tongue=get('tongueOut'),clearance=.65*Math.min(1,tongue/.2);
-  values.jawOpen=Math.max(get('jawOpen'),clearance);
+  // Corner-only smile shapes leave the central lip seal covering the teeth.
+  // Add bounded clearance, but let deliberate lip closure and rounding win.
+  const smile=Math.min(get('mouthSmileLeft'),get('mouthSmileRight'));
+  const smileRamp=clamp((smile-.15)/.65);
+  const smileReveal=smileRamp*smileRamp*(3-2*smileRamp)*(1-get('mouthClose'))
+    *(1-clamp(round/.8))*(1-get('mouthRollUpper'))
+    *(1-Math.max(get('mouthPressLeft'),get('mouthPressRight')));
+  values.jawOpen=Math.max(get('jawOpen'),clearance,.32*smileReveal);
   values.mouthClose=Math.min(get('mouthClose'),Math.max(0,values.jawOpen-clearance));
   const open=values.jawOpen-values.mouthClose,exposed=Math.min(1,tongue*5);
   values.mouthFunnel=get('mouthFunnel')*roundScale*(1-exposed*.9);
@@ -22,7 +29,7 @@ export function resolveMouth(values){
     values['mouthSmile'+side]=smile/budget*(1-narrowing*.75);
     values['mouthStretch'+side]=stretch/budget*(1-narrowing*.75);
     values['mouthLowerDown'+side]=get('mouthLowerDown'+side)*.35*(1-open*.75)*(1-exposed);
-    values['mouthUpperUp'+side]=get('mouthUpperUp'+side)*.35*(1-exposed);
+    values['mouthUpperUp'+side]=Math.max(get('mouthUpperUp'+side)*.35,.65*smileReveal*(1-open*.5))*(1-exposed);
     values['mouthPress'+side]=get('mouthPress'+side)*(1-open)*(1-exposed);
     values['mouthDimple'+side]=get('mouthDimple'+side)*(1-narrowing);
   }
@@ -36,6 +43,11 @@ export function resolveMouth(values){
 export function oralWeight(name,value,material){
   // Lip expressions must not pull the back wall of the mouth out through the
   // opening, or flatten/shorten the long tongue itself.
-  if(/oral interior|tongue/i.test(material)&&name.startsWith('mouth')&&name!=='mouthClose')return 0;
+  if(/tongue/i.test(material)&&name.startsWith('mouth')&&name!=='mouthClose')return 0;
+  if(/oral interior/i.test(material)&&name.startsWith('mouth')&&name!=='mouthClose'){
+    // Bounded smile/lip-lift targets keep the cavity rim attached to the lip
+    // opening. Rounding and lateral targets can still push its wall outward.
+    return /^mouth(?:Smile|UpperUp|LowerDown)(?:Left|Right)$/.test(name)?value:0;
+  }
   return value;
 }
