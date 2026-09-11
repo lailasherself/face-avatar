@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>body{margin:0;background:#222;overflow:hidden}canvas{display:block}</style></head>
+<body>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+const TUN='https://yeast-inkjet-understand-compaq.trycloudflare.com';
+const params=new URLSearchParams(location.search);
+const model=params.get('m')||'vendor/green-alien-RIGGED.glb';
+// states: comma list of blink values to render side by side; 'zoom' = eye closeup
+const blinkParam=(params.get('states')||'0,0.5,1').split(',').map(parseFloat);
+const zoom=params.get('zoom')==='1';
+const N=blinkParam.length;
+const W=Math.min(360, window.innerWidth/N), H=Math.min(520, window.innerHeight);
+const rend=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+rend.setSize(window.innerWidth,window.innerHeight);document.body.appendChild(rend.domElement);
+const loader=new GLTFLoader();loader.setMeshoptDecoder(MeshoptDecoder);
+loader.load(TUN+'/'+model,(g)=>{
+  const scenes=[];
+  blinkParam.forEach((bv,idx)=>{
+    const scene=new THREE.Scene();scene.background=new THREE.Color(0x202024);
+    const obj=idx===0?g.scene:THREE.SkeletonUtils? SkeletonUtils.clone(g.scene):g.scene.clone(true);
+    scene.add(obj);
+    obj.traverse(m=>{ if(m.isMesh && m.morphTargetDictionary){ const d=m.morphTargetDictionary,inf=m.morphTargetInfluences;
+      for(const nm in d){ if(nm.startsWith('eyeBlink')) inf[d[nm]]=bv; if(nm==='jawOpen') inf[d[nm]]=0; } }});
+    const key=new THREE.DirectionalLight(0xffffff,2.2);key.position.set(1,1,2);scene.add(key);
+    const fill=new THREE.DirectionalLight(0xffffff,1.2);fill.position.set(-1,0.5,1.5);scene.add(fill);
+    scene.add(new THREE.AmbientLight(0xffffff,0.6));
+    const box=new THREE.Box3().setFromObject(obj);const c=box.getCenter(new THREE.Vector3());const size=box.getSize(new THREE.Vector3());
+    const cam=new THREE.PerspectiveCamera(40,W/H,0.01,100);
+    if(zoom){
+      // aim BELOW center (eyes are low on this alien), pull in close
+      const eye=new THREE.Vector3(c.x, c.y-size.y*0.18, c.z);
+      cam.position.set(c.x, eye.y, c.z+size.length()*0.42); cam.lookAt(eye);
+    } else {
+      cam.position.set(c.x, c.y, c.z+size.length()*1.4); cam.lookAt(c);
+    }
+    scenes.push({scene,cam,x:idx*(window.innerWidth/N),w:window.innerWidth/N});
+  });
+  rend.setScissorTest(true);
+  scenes.forEach(s=>{ rend.setViewport(s.x,0,s.w,window.innerHeight); rend.setScissor(s.x,0,s.w,window.innerHeight); rend.render(s.scene,s.cam); });
+  window.__done=true;
+},undefined,(e)=>{window.__error=String(e);document.title='ERR '+e;});
+</script></body></html>

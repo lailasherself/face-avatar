@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "status": "Articulated refinement; final sculpting and physical target-hardware approval pending",
+  "vehicle": "assets/3dai/rigged/silver-vehicle.glb",
+  "characters": [
+    {
+      "id": "orbit",
+      "name": "Orbit",
+      "url": "assets/3dai/refined/orbit.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/orbit.png",
+      "bones": 42,
+      "sourceTaskId": "32162e04-483e-4d62-82b3-984296472ce0",
+      "reference": "Jy8yzW"
+    },
+    {
+      "id": "pearl",
+      "name": "Pearl",
+      "cyclops": true,
+      "url": "assets/3dai/refined/pearl.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/pearl.png",
+      "bones": 50,
+      "sourceTaskId": "1d7d7a55-79a5-41d7-b840-c2b85577625b",
+      "reference": "kMxwme"
+    },
+    {
+      "id": "juno",
+      "name": "Juno",
+      "cyclops": true,
+      "url": "assets/3dai/refined/juno.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/juno.png",
+      "bones": 42,
+      "sourceTaskId": "cd161e78-226d-49ed-84bb-57d764dda6f7",
+      "reference": "bjWgsy"
+    },
+    {
+      "id": "fuzz",
+      "name": "Fuzz",
+      "url": "assets/3dai/refined/fuzz.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/fuzz.png",
+      "bones": 45,
+      "sourceTaskId": "f133eee2-d6db-4ec6-b341-940d7aad2fcb",
+      "reference": "UnGowG"
+    },
+    {
+      "id": "clementine",
+      "name": "Clementine",
+      "url": "assets/3dai/refined/clementine.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/clementine.png",
+      "bones": 42,
+      "sourceTaskId": "1536b59f-56ba-4096-9823-eda7cf44d099",
+      "reference": "zF0uXa"
+    },
+    {
+      "id": "coral",
+      "name": "Coral",
+      "url": "assets/3dai/refined/coral.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/coral.png",
+      "bones": 42,
+      "sourceTaskId": "f852429a-8c8c-439a-b073-02fefb4e9421",
+      "reference": "nkmqsW"
+    },
+    {
+      "id": "sprout",
+      "name": "Sprout",
+      "url": "assets/3dai/refined/sprout.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/sprout.png",
+      "bones": 42,
+      "sourceTaskId": "5220d255-53e9-4679-9347-75eb310f6994",
+      "reference": "8KA2yn"
+    },
+    {
+      "id": "atl",
+      "name": "ATL",
+      "url": "assets/3dai/refined/atl.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/atl.png",
+      "bones": 42,
+      "sourceTaskId": "68b47717-cbeb-4987-b9e2-c3306e38c161",
+      "reference": "ppDO39"
+    }
+  ]
+}

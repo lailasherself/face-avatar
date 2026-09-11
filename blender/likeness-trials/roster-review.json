@@ -1,0 +1,60 @@
+{
+  "status": "active_for_movement_testing",
+  "generationCreditsSpent": 0,
+  "hardwareValidated": false,
+  "characters": [
+    {
+      "name": "cosmic",
+      "blender": "blender/likeness-trials/cosmic-body-rig.blend",
+      "glb": "assets/likeness-trials/cosmic-body-rig.glb",
+      "bytes": 15076836,
+      "sha256": "8b5865987889192228eccba92869cb40dda1ff35ddcda8dbe77fd2bb601a991e",
+      "materialRevision": "cosmic-clay-surface-glossy-eyes-1",
+      "bones": 30,
+      "exportMeshes": 16,
+      "expressionChannels": 52,
+      "qa": ".context/qa/cosmic-complete",
+      "runtimeChecks": "pass",
+      "hardwareChecks": "not_run"
+    },
+    {
+      "name": "summer",
+      "blender": "blender/likeness-trials/summer-body-rig.blend",
+      "glb": "assets/likeness-trials/summer-body-rig.glb",
+      "bytes": 13085100,
+      "sha256": "dfa3cf90fc9f7ce1f7ae47c21a702f410bb3a26c4e272cc85fc1d20fd90d452b",
+      "bones": 30,
+      "exportMeshes": 16,
+      "expressionChannels": 52,
+      "qa": ".context/qa/summer-complete",
+      "runtimeChecks": "pass",
+      "hardwareChecks": "not_run"
+    },
+    {
+      "name": "glass",
+      "blender": "blender/likeness-trials/glass-body-rig.blend",
+      "glb": "assets/likeness-trials/glass-body-rig.glb",
+      "bytes": 9215012,
+      "sha256": "a8369eebd4e770ad1be2db52f2e29ecb4a711e1b4e53560b301cf9b08d9590ad",
+      "bones": 36,
+      "exportMeshes": 10,
+      "expressionChannels": 52,
+      "qa": ".context/qa/glass-complete",
+      "runtimeChecks": "pass",
+      "hardwareChecks": "not_run"
+    },
+    {
+      "name": "kudzu",
+      "blender": "blender/likeness-trials/kudzu-body-rig.blend",
+      "glb": "assets/likeness-trials/kudzu-body-rig.glb",
+      "bytes": 13590556,
+      "sha256": "b3c5d511c9b56d6da0c6d53c89ead9f10b6e856bca2f3ae40fee51cf4762b52c",
+      "bones": 36,
+      "exportMeshes": 23,
+      "expressionChannels": 52,
+      "qa": ".context/qa/kudzu-complete",
+      "runtimeChecks": "pass",
+      "hardwareChecks": "not_run"
+    }
+  ]
+}

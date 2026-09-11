@@ -1,0 +1,288 @@
+{
+  "jawOpen": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "jawForward": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "jawLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "jawRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthFunnel": {
+    "before": {
+      "flipped": 1,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": true
+  },
+  "mouthPucker": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthSmileLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthSmileRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthFrownLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthFrownRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthStretchLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthStretchRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthRollLower": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthRollUpper": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthShrugLower": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthShrugUpper": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthPressLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthPressRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthLowerDownLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthLowerDownRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthUpperUpLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthUpperUpRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthDimpleLeft": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  },
+  "mouthDimpleRight": {
+    "before": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "after": {
+      "flipped": 0,
+      "stretched": 0
+    },
+    "accepted": false
+  }
+}

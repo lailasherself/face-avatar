@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ATLiens — Material Prototype</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0612;color:#eee;font-family:system-ui,sans-serif;overflow:hidden}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  #ui{position:fixed;top:0;left:0;right:0;padding:12px 14px;display:flex;flex-wrap:wrap;gap:8px;
+      align-items:center;background:linear-gradient(#0a0612cc,#0a061200);z-index:10}
+  .grp{display:flex;gap:6px;align-items:center;background:#1c1230aa;border:1px solid #3a2a5a;
+      border-radius:10px;padding:6px 8px}
+  .grp b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#b79be0;margin-right:2px}
+  button{background:#2a1c48;color:#eee;border:1px solid #4a3676;border-radius:8px;padding:7px 11px;
+      font-size:13px;cursor:pointer}
+  button:hover{background:#3a2660}
+  button.on{background:#7b27c4;border-color:#b57bff;color:#fff;font-weight:600}
+  input[type=color]{width:30px;height:26px;border:none;background:none;cursor:pointer}
+  #hint{position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:12px;color:#9a86c0}
+  #status{position:fixed;top:50%;left:0;right:0;text-align:center;color:#b79be0;font-size:14px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="ui">
+  <div class="grp"><b>Alien</b><span id="models"></span></div>
+  <div class="grp"><b>Material</b>
+    <button data-mode="original" class="on">Original</button>
+    <button data-mode="candy">Candy paint</button>
+    <button data-mode="chrome">Chrome</button>
+    <button data-mode="gold">Gold</button>
+    <button data-mode="oil">Oil-slick</button>
+  </div>
+  <div class="grp"><b>Candy hue</b><input type="color" id="hue" value="#7b27c4"></div>
+  <div class="grp"><b>Cosmic rim</b><button id="rim" class="on">On</button></div>
+</div>
+<div id="status">Loading…</div>
+<div id="hint">drag to orbit · scroll to zoom · this is a throwaway concept preview, not production</div>
+
+<script type="importmap">
+{"imports":{
+  "three":"../vendor/three/three.module.js",
+  "three/addons/":"../vendor/three/addons/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+import {OrbitControls} from 'three/addons/OrbitControls.js';
+import {RoomEnvironment} from 'three/addons/RoomEnvironment.js';
+
+const MODELS = ['orbit','pearl','juno','fuzz','clementine','coral','sprout','atl'];
+const params = new URLSearchParams(location.search);
+let current = params.get('m') || 'pearl';
+
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0612);
+
+const cam = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.01, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+app.appendChild(renderer.domElement);
+
+// Environment map — gives chrome/candy something to reflect (essential for the look)
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+// Cosmic key/fill + a warm gold kicker so gold/chrome pop
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(2,3,4); scene.add(key);
+const fill = new THREE.DirectionalLight(0x8a5cff, 1.1); fill.position.set(-3,1,2); scene.add(fill);
+const kick = new THREE.DirectionalLight(0xffd27a, 1.3); kick.position.set(0,-2,-3); scene.add(kick);
+
+const controls = new OrbitControls(cam, renderer.domElement);
+controls.enableDamping = true;
+
+const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder);
+const ktx2 = new KTX2Loader().setTranscoderPath('../vendor/three/addons/libs/basis/').detectSupport(renderer);
+loader.setKTX2Loader(ktx2);
+
+let root = null;
+let meshes = [];      // {mesh, original:[mats]}
+let rimOn = true;
+
+function addRim(mat){
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uRimColor = {value:new THREE.Color(0x9a5cff)};
+    shader.uniforms.uRimPower = {value:2.5};
+    shader.uniforms.uRimStrength = {value: rimOn ? 0.9 : 0.0};
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>','#include <common>\nuniform vec3 uRimColor;uniform float uRimPower;uniform float uRimStrength;varying vec3 vRN;varying vec3 vRV;')
+      .replace('#include <opaque_fragment>','float rim=pow(1.0-max(dot(normalize(vRN),normalize(vRV)),0.0),uRimPower);\noutgoingLight+=uRimColor*rim*uRimStrength;\n#include <opaque_fragment>');
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>','#include <common>\nvarying vec3 vRN;varying vec3 vRV;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvRN=normalize(normalMatrix*normal);\nvRV=normalize(-(modelViewMatrix*vec4(transformed,1.0)).xyz);');
+    mat.userData.shader = shader;
+  };
+}
+
+function makeMat(mode, srcMat){
+  const candy = new THREE.Color(document.getElementById('hue').value);
+  // preserve surface micro-detail from the original where possible
+  const normalMap = srcMat && srcMat.normalMap ? srcMat.normalMap : null;
+  let m;
+  if(mode==='candy'){
+    m = new THREE.MeshPhysicalMaterial({color:candy, metalness:0.9, roughness:0.32,
+      clearcoat:1.0, clearcoatRoughness:0.06, envMapIntensity:1.6});
+  } else if(mode==='chrome'){
+    m = new THREE.MeshPhysicalMaterial({color:0xffffff, metalness:1.0, roughness:0.03,
+      clearcoat:1.0, clearcoatRoughness:0.04, envMapIntensity:2.2});
+  } else if(mode==='gold'){
+    m = new THREE.MeshPhysicalMaterial({color:0xffc94d, metalness:1.0, roughness:0.16,
+      clearcoat:0.6, envMapIntensity:1.9});
+  } else if(mode==='oil'){
+    m = new THREE.MeshPhysicalMaterial({color:0x140a24, metalness:0.35, roughness:0.18,
+      clearcoat:1.0, iridescence:1.0, iridescenceIOR:1.35, envMapIntensity:1.7});
+  }
+  if(m && normalMap){ m.normalMap = normalMap; }
+  if(m) addRim(m);
+  return m;
+}
+
+function applyMode(mode){
+  document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  for(const rec of meshes){
+    if(mode==='original'){
+      rec.mesh.material = Array.isArray(rec.original) ? rec.original : rec.original;
+    } else {
+      const srcArr = Array.isArray(rec.original)?rec.original:[rec.original];
+      const newMats = srcArr.map(s=>makeMat(mode,s));
+      rec.mesh.material = newMats.length===1 ? newMats[0] : newMats;
+    }
+  }
+}
+
+function load(name){
+  current = name;
+  document.getElementById('status').textContent = 'Loading '+name+'…';
+  document.querySelectorAll('#models button').forEach(b=>b.classList.toggle('on', b.textContent===name));
+  if(root){ scene.remove(root); root=null; }
+  meshes = [];
+  loader.load(`../assets/3dai/refined/${name}.glb`, (g)=>{
+    root = g.scene; scene.add(root);
+    root.traverse(c=>{
+      if(c.isMesh && c.material){
+        meshes.push({mesh:c, original:c.material});
+      }
+    });
+    // frame
+    const box = new THREE.Box3().setFromObject(root);
+    const ctr = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const d = Math.max(size.x,size.y,size.z);
+    root.position.sub(ctr);
+    cam.position.set(0, size.y*0.05, d*1.5);
+    controls.target.set(0,0,0); controls.update();
+    document.getElementById('status').textContent='';
+    // re-apply current material mode
+    const active = document.querySelector('[data-mode].on');
+    applyMode(active?active.dataset.mode:'original');
+  }, (xhr)=>{
+    if(xhr.total) document.getElementById('status').textContent='Loading '+name+' '+Math.round(xhr.loaded/xhr.total*100)+'%';
+  }, (e)=>{ document.getElementById('status').textContent='Error: '+e; });
+}
+
+// UI
+const modelsEl = document.getElementById('models');
+MODELS.forEach(n=>{
+  const b=document.createElement('button'); b.textContent=n;
+  if(n===current) b.classList.add('on');
+  b.onclick=()=>load(n); modelsEl.appendChild(b);
+});
+document.querySelectorAll('[data-mode]').forEach(b=> b.onclick=()=>applyMode(b.dataset.mode));
+document.getElementById('hue').oninput=()=>{ const a=document.querySelector('[data-mode].on'); if(a&&a.dataset.mode!=='original') applyMode(a.dataset.mode); };
+document.getElementById('rim').onclick=(e)=>{ rimOn=!rimOn; e.target.classList.toggle('on',rimOn); e.target.textContent=rimOn?'On':'Off'; const a=document.querySelector('[data-mode].on'); if(a) applyMode(a.dataset.mode); };
+
+addEventListener('resize',()=>{ cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+function tick(){ controls.update(); renderer.render(scene,cam); requestAnimationFrame(tick); }
+tick();
+load(current);
+</script>
+</body>
+</html>

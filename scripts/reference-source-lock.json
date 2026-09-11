@@ -1,0 +1,20 @@
+{
+  "status": "rigged_for_live_movement_review_hardware_acceptance_pending",
+  "method": "fresh_geometry_from_supplied_png_contours_no_old_character_meshes",
+  "orbit": {
+    "archivedImage": "assets/references/orbit-supplied.png",
+    "image": ".context/attachments/8gfKpO/lailasherself_purple_alien_from_atlanta_--ar_34_--sref_httpss_77004502-1809-4f55-895b-87757aedf540_1 (1).png",
+    "sha256": "15cb2d6cfad4cf34e1b7909db4fd1d8610744944d3e2f5550eca015d051563e8",
+    "source": "blender/likeness-trials/orbit-image-source.blend",
+    "rig": "blender/likeness-trials/orbit-image-rig.blend",
+    "glb": "assets/likeness-trials/orbit-image-rig.glb"
+  },
+  "coral": {
+    "archivedImage": "assets/references/coral-supplied.png",
+    "image": ".context/attachments/ZWD70v/lailasherself_add_a_body_--ar_11_--edit_httpss.mj.runuvJVp0ni_da9be720-1394-41cb-abb8-cb0c68dc0d38_0.png",
+    "sha256": "e157c9c4f6875942a052a37254d1d2eec1e23e22c186c6fe1baea147f6b33300",
+    "source": "blender/likeness-trials/coral-image-source.blend",
+    "rig": "blender/likeness-trials/coral-image-rig.blend",
+    "glb": "assets/likeness-trials/coral-image-rig.glb"
+  }
+}

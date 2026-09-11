@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "status": "active_roster_for_user_movement_testing; hardware_acceptance_pending",
+  "vehicle": null,
+  "characters": [
+    {
+      "id": "orbit",
+      "name": "Orbit",
+      "bones": 39,
+      "sourceMethod": "supplied_image_contour_blender",
+      "reference": "8gfKpO",
+      "url": "assets/likeness-trials/orbit-image-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/orbit-image.png",
+      "revision": "reference_material_refinement_2"
+    },
+    {
+      "id": "cosmic",
+      "name": "Cosmic",
+      "url": "assets/likeness-trials/cosmic-body-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/cosmic.png",
+      "revision": "clay_material_review"
+    },
+    {
+      "id": "nebula",
+      "name": "Nebula",
+      "url": "assets/reference-characters/nebula-review.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/nebula.png",
+      "revision": "reference_rig_review"
+    },
+    {
+      "id": "kudzu",
+      "name": "Kudzu",
+      "url": "assets/likeness-trials/kudzu-body-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/kudzu.png",
+      "revision": "reference_rig_review"
+    },
+    {
+      "id": "clay",
+      "name": "Clay",
+      "url": "assets/likeness-trials/clay-body-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/clay.png",
+      "revision": "reference_rig_review"
+    },
+    {
+      "id": "coral",
+      "name": "Coral",
+      "bones": 18,
+      "sourceMethod": "supplied_image_contour_blender",
+      "reference": "ZWD70v",
+      "url": "assets/likeness-trials/coral-image-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/coral-image.png",
+      "revision": "reference_material_refinement_2"
+    },
+    {
+      "id": "summer",
+      "name": "Summer",
+      "url": "assets/likeness-trials/summer-body-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/summer.png",
+      "revision": "reference_rig_review"
+    },
+    {
+      "id": "glass",
+      "name": "Glass",
+      "url": "assets/likeness-trials/glass-body-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/glass.png",
+      "revision": "reference_rig_review"
+    }
+  ]
+}
