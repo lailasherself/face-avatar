@@ -29,6 +29,25 @@ A GitHub branch is a source snapshot, not a hosted preview. A localhost link onl
 works on the computer running the server. Native ZED capture still requires the
 local SDK/hardware setup described in `scripts/ZED_INSTALLATION.md`.
 
+## Vercel Team Preview
+
+The hosted preview opens `cockpit.html`, with the same automatic webcam startup
+and hidden operator UI as the local installation. Native ZED SDK capture still
+requires the local installation; Vercel only hosts the browser files.
+
+In the Vercel project's **Settings > Git**, enable **Git LFS**, then redeploy.
+Without it, model and WebAssembly URLs contain Git LFS text placeholders, causing
+`WebAssembly.instantiate(): expected magic word` and character-loading failures.
+The build now rejects those placeholders instead of publishing a broken preview.
+
+`node scripts/build_web_preview.mjs` validates and packages the cockpit, bundled
+libraries and manifest-referenced assets into `dist/`. Blender sources, unused
+model iterations, local context and scripts are not published. The original
+head-only `index.html` remains available locally; hosted `/` and `/index.html`
+redirect to the cockpit. Merge preview changes into the Vercel production branch
+(`main`) to publish them. Revalidate cached assets on reload; no camera images
+are uploaded by the preview.
+
 ## Local Installation
 
 Run `python3 scripts/run_installation.py` (`py -3 scripts/run_installation.py` on

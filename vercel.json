@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "",
+  "buildCommand": "node scripts/build_web_preview.mjs",
+  "outputDirectory": "dist",
+  "redirects": [
+    { "source": "/", "destination": "/cockpit.html", "permanent": false },
+    { "source": "/index.html", "destination": "/cockpit.html", "permanent": false }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    }
+  ]
+}
