@@ -11,7 +11,7 @@
       "reference": "8gfKpO",
       "url": "assets/likeness-trials/orbit-image-rig.glb",
       "thumbnail": "assets/likeness-trials/thumbnails/orbit-image.png",
-      "revision": "reference_material_refinement_2"
+      "revision": "reference_painted_sculpt_4"
     },
     {
       "id": "cosmic",
@@ -25,11 +25,12 @@
       "name": "Nebula",
       "url": "assets/reference-characters/nebula-review.glb",
       "thumbnail": "assets/likeness-trials/thumbnails/nebula.png",
-      "revision": "reference_rig_review"
+      "revision": "rounded_mouthbag_1"
     },
     {
       "id": "kudzu",
       "name": "Kudzu",
+      "smileBiteFit": {"centerDrop": 0.3, "forward": 1.2},
       "url": "assets/likeness-trials/kudzu-body-rig.glb",
       "thumbnail": "assets/likeness-trials/thumbnails/kudzu.png",
       "revision": "reference_rig_review"
@@ -37,19 +38,10 @@
     {
       "id": "clay",
       "name": "Clay",
+      "smileBiteFit": {"centerDrop": 0.3},
       "url": "assets/likeness-trials/clay-body-rig.glb",
       "thumbnail": "assets/likeness-trials/thumbnails/clay.png",
-      "revision": "reference_rig_review"
-    },
-    {
-      "id": "coral",
-      "name": "Coral",
-      "bones": 18,
-      "sourceMethod": "supplied_image_contour_blender",
-      "reference": "ZWD70v",
-      "url": "assets/likeness-trials/coral-image-rig.glb",
-      "thumbnail": "assets/likeness-trials/thumbnails/coral-image.png",
-      "revision": "reference_material_refinement_2"
+      "revision": "rounded_mouthbag_1"
     },
     {
       "id": "summer",
@@ -63,7 +55,19 @@
       "name": "Glass",
       "url": "assets/likeness-trials/glass-body-rig.glb",
       "thumbnail": "assets/likeness-trials/thumbnails/glass.png",
-      "revision": "reference_rig_review"
+      "revision": "rounded_mouthbag_1"
+    }
+  ],
+  "pausedCharacters": [
+    {
+      "id": "coral",
+      "name": "Coral",
+      "bones": 18,
+      "sourceMethod": "supplied_image_contour_blender",
+      "reference": "ZWD70v",
+      "url": "assets/likeness-trials/coral-image-rig.glb",
+      "thumbnail": "assets/likeness-trials/thumbnails/coral-image.png",
+      "revision": "reference_painted_sculpt_4"
     }
   ]
 }

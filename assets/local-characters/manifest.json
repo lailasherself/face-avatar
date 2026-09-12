@@ -4,15 +4,6 @@
   "vehicle": null,
   "characters": [
     {
-      "id": "coral",
-      "name": "Coral",
-      "url": "assets/3dai/refined/coral.glb",
-      "thumbnail": "assets/3dai/refined/thumbnails/coral.png",
-      "bones": 42,
-      "sourceTaskId": "f852429a-8c8c-439a-b073-02fefb4e9421",
-      "reference": "nkmqsW"
-    },
-    {
       "id": "cosmic",
       "name": "Cosmic",
       "url": "assets/local-characters/cosmic.glb",
@@ -62,6 +53,17 @@
       "bones": 42,
       "sourceTaskId": "32162e04-483e-4d62-82b3-984296472ce0",
       "reference": "Jy8yzW"
+    }
+  ],
+  "pausedCharacters": [
+    {
+      "id": "coral",
+      "name": "Coral",
+      "url": "assets/3dai/refined/coral.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/coral.png",
+      "bones": 42,
+      "sourceTaskId": "f852429a-8c8c-439a-b073-02fefb4e9421",
+      "reference": "nkmqsW"
     }
   ]
 }

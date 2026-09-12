@@ -13,7 +13,7 @@ test('Vercel opens the cockpit and validates assets before publishing', () => {
 
 test('preview includes tracking workers, binaries and every selectable roster', () => {
   const files = previewFiles();
-  for (const file of ['cockpit.html', 'fleet.js', 'face-tracking-worker.js', 'hand-tracking-worker.js',
+  for (const file of ['cockpit.html', 'fleet.js', 'smile-rig.js', 'face-tracking-worker.js', 'hand-tracking-worker.js',
     'finger-tracking-worker.js', 'tongue-tracking-worker.js', 'vendor/mediapipe/model/face_landmarker.task',
     'vendor/mediapipe/model/hand_landmarker.task', 'vendor/mediapipe/model/pose_landmarker_lite.task',
     'vendor/mediapipe/wasm/vision_wasm_internal.wasm', 'vendor/mediapipe/wasm/vision_wasm_nosimd_internal.wasm',
@@ -22,6 +22,11 @@ test('preview includes tracking workers, binaries and every selectable roster', 
   }
   for (const path of files.filter(f => f.endsWith('/manifest.json'))) {
     const manifest = JSON.parse(readFileSync(new URL(`../${path}`, import.meta.url)));
+    assert(!manifest.characters.some(c => c.id === 'coral'), path + ': Coral must stay paused');
+    for (const character of manifest.pausedCharacters || []) {
+      assert(!files.includes(character.url), 'Paused model must not be published');
+      assert(!files.includes(character.thumbnail), 'Paused thumbnail must not be published');
+    }
     for (const character of manifest.characters) {
       assert(files.includes(character.url));
       assert(files.includes(character.thumbnail));

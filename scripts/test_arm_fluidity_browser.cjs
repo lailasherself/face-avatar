@@ -2,13 +2,18 @@ const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const roster=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).characters.map(c=>c.id);
-const out='.context/qa/arm-fluidity';fs.mkdirSync(out,{recursive:true});
+const out=process.env.RIG_DIR?process.env.RIG_DIR+'/arm-fluidity':'.context/qa/arm-fluidity';fs.mkdirSync(out,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  try{
   const page=await browser.newPage({viewport:{width:1440,height:1080}}),errors=[],report=[],failures=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>{navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Test camera off','NotAllowedError');};});
+  if(process.env.RIG_DIR)await page.route('**/assets/3dai/manifest.json',async route=>{
+   const response=await route.fetch(),manifest=await response.json();
+   for(const c of manifest.characters)if((process.env.RIG_IDS||'').split(',').includes(c.id))c.url='/'+process.env.RIG_DIR+'/'+c.id+'-candidate.glb';
+   await route.fulfill({response,json:manifest});
+  });
   await page.route('**/fleet.js',async route=>{
    const response=await route.fetch(),body=await response.text();
    await route.fulfill({response,body:body+`

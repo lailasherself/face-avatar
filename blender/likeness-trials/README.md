@@ -1,6 +1,62 @@
 # Reference Likeness Builds
 
-## Orbit And Coral Surface Refinement
+Coral is temporarily paused in the website manifests. Its revised source, GLB and
+textures below are retained, but are not part of the published website bundle.
+
+## Orbit And Coral Reference Paint And Sculpt Revision 4
+
+Current sources and GLBs use `reference_painted_sculpt_4`, revised sequentially
+through Blender MCP from the locked original PNGs. Reference pixels now supply
+pigment, small-scale relief and variable roughness, with approximate lighting
+removal. Broad face volume and body folds are actual vertex changes, propagated
+to facial keys. Unseen surfaces use cloned skin samples. These are animated 3D
+meshes, not PNG billboards, but single-view materials and hidden shapes remain
+approximations, not exact reconstructions or approved final art.
+
+`scripts/paint_reference_surfaces.py` adds explicit prepare, coordinate, sculpt,
+material, bake, audit and promotion stages to the preceding exporter. Never bake
+already baked shaders or repeat sculpting. Packed maps include separate 2048px
+head/body/details color, normal and roughness atlases. Original eye, bulb and oral
+detail UVs/materials are retained separately to preserve their finish. Runtime
+normal strength is restrained to .60 for Orbit and .40 for Coral.
+
+Topology, weights, bone rests and channel names are unchanged. A local displacement
+limiter leaves zero newly reversed neutral head/body triangles versus revision 3.
+Eye, teeth and tongue targets are preserved; the cavity follows the revised rim.
+The other six characters and runtime tracking are untouched by this art pass.
+
+Before-state backups, candidate sources, geometry audits, expression and angle
+renders, and the original/before/after review are in
+`.context/qa/reference-painted-v4/`. Hardware acceptance and visual approval are
+pending. This does not fix live smile bite or eyelid closure/cross-talk.
+
+## Previous Lip And Surface Revision 3
+
+The preceding `*-image-rig.blend` sources and default GLBs used
+`reference_lip_surface_3`. Revised sequentially through Blender MCP against the
+locked 8gfKpO and ZWD70v PNGs, with Clay's supplied screenshot as a finish-quality
+comparison. Lip contours now have distinct upper/lower shapes, rounded depth,
+a near-closed resting seam, and textured blue-charcoal/red surfaces. Head, body
+and remaining details each have dedicated packed 2048px color/normal atlases.
+Orbit retains pebbled skin and rose folds; Coral retains its striated wax finish.
+No reference-image projection or paid generation was used.
+
+`scripts/refine_supplied_likeness.py` provides explicit sculpt, material, bake,
+audit and promotion stages. Run one character at a time through Blender MCP;
+do not rerun sculpting on an already revised source or bake baked materials.
+Audits against the preceding source prove unchanged topology, bone rest matrices,
+weights, facial channel sets, and body/eye/teeth/tongue targets. Only the lip and
+attached cavity geometry and the surface bakes change. The original six other
+characters and all runtime tracking code are untouched by this revision.
+
+Before-state backups, candidate sources, seven-pose actual-export renders,
+controls audits and a PNG/before/after review page are under
+`.context/qa/supplied-lip-surface-v3/`. Both arm-continuity/collision replays and
+portrait/landscape live-render checks pass. Visual approval and physical sensor
+acceptance remain pending. This is not a fix for the separate smile bite or
+live eyelid cross-talk/closure reports.
+
+## Previous Surface Refinement (Revision 2)
 
 The user rejected the first completed rigs' texture quality and assembled look.
 Both were subsequently refined, Orbit then Coral, through live Blender MCP using

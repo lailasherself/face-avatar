@@ -5,8 +5,9 @@ import {createHash} from 'node:crypto';
 
 const root=new URL('../',import.meta.url);
 const manifest=JSON.parse(readFileSync(new URL('assets/3dai/manifest.json',root)));
-test('default cockpit roster contains all eight replacement rigs',()=>{
-  assert.deepEqual(manifest.characters.map(c=>c.id),['orbit','cosmic','nebula','kudzu','clay','coral','summer','glass']);
+test('default cockpit roster contains seven active rigs with Coral paused',()=>{
+  assert.deepEqual(manifest.characters.map(c=>c.id),['orbit','cosmic','nebula','kudzu','clay','summer','glass']);
+  assert.deepEqual(manifest.pausedCharacters.map(c=>c.id),['coral']);
   assert.equal(manifest.vehicle,null);
   for(const c of manifest.characters){
     assert(existsSync(new URL(c.url,root)),c.id+' model missing');
@@ -24,12 +25,12 @@ test('default cockpit roster contains all eight replacement rigs',()=>{
 test('Orbit and Coral use the exact supplied-image builds, not the rejected old bases',()=>{
   const lock=JSON.parse(readFileSync(new URL('scripts/reference-source-lock.json',root)));
   for(const [id,bones,reference] of [['orbit',39,'8gfKpO'],['coral',18,'ZWD70v']]){
-    const character=manifest.characters.find(c=>c.id===id);
+    const character=[...manifest.characters,...manifest.pausedCharacters].find(c=>c.id===id);
     assert.equal(character.url,`assets/likeness-trials/${id}-image-rig.glb`);
     assert.equal(character.bones,bones);
     assert.equal(character.reference,reference);
     assert.equal(character.sourceMethod,'supplied_image_contour_blender');
-    assert.equal(character.revision,'reference_material_refinement_2');
+    assert.equal(character.revision,'reference_painted_sculpt_4');
     assert.equal(character.sourceTaskId,undefined);
     assert.equal(createHash('sha256').update(readFileSync(new URL(lock[id].archivedImage||lock[id].image,root))).digest('hex'),lock[id].sha256);
   }
@@ -40,15 +41,40 @@ test('refined Orbit and Coral export distinct skin finishes and higher-resolutio
     const bytes=readFileSync(new URL(`assets/likeness-trials/${id}-image-rig.glb`,root));
     const gltf=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)));
     const materials=gltf.materials;
-    const skin=materials.find(m=>m.name.includes(id==='orbit'?'Pebbled lavender skin':'Burgundy wax skin'));
+    const name=id==='orbit'?'Orbit':'Coral';
+    const skin=materials.find(m=>m.name.includes(`Reference painted ${name} Head skin`));
     assert(skin,'Missing reference-specific skin material');
     assert.equal(skin.pbrMetallicRoughness.metallicFactor,0);
-    assert(Math.abs(skin.pbrMetallicRoughness.roughnessFactor-(id==='orbit'?.53:.42))<1e-5);
+    assert(skin.pbrMetallicRoughness.metallicRoughnessTexture,'Missing variable skin roughness');
+    assert(Math.abs(skin.normalTexture.scale-(id==='orbit'?.60:.40))<1e-5);
+    const lip=materials.find(m=>m.name.includes(`Reference painted ${name} Head lips`));
+    assert(lip?.normalTexture,'Missing sculpted lip texture');
+    const body=materials.find(m=>m.name.includes(`Reference painted ${name} Body skin`));
+    assert(body?.normalTexture,'Missing body texture');
+    assert.notEqual(body.normalTexture.index,skin.normalTexture.index,'Head must not share its atlas with the body');
     const image=gltf.images[gltf.textures[skin.normalTexture.index].source];
     const view=gltf.bufferViews[image.bufferView];
     const binaryStart=20+bytes.readUInt32LE(12)+8;
     const png=bytes.subarray(binaryStart+(view.byteOffset||0),binaryStart+(view.byteOffset||0)+view.byteLength);
     assert.equal(png.readUInt32BE(16),2048);
     assert.equal(png.readUInt32BE(20),2048);
+  }
+});
+
+test('revised mouth bags export skinned lining with lip-following targets',()=>{
+  for(const id of ['clay','nebula','glass']){
+    const character=manifest.characters.find(c=>c.id===id);
+    const bytes=readFileSync(new URL(character.url,root));
+    const gltf=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)));
+    const node=gltf.nodes.find(n=>n.name===id[0].toUpperCase()+id.slice(1)+' Oral Cavity');
+    assert(node&&node.skin!==undefined,id+' mouth bag must follow the head skin');
+    const mesh=gltf.meshes[node.mesh];
+    assert.equal(node.extras.oralRevision,'rounded-mouthbag-1');
+    for(const channel of ['jawOpen','mouthClose','mouthSmileLeft','mouthSmileRight','mouthUpperUpLeft','mouthLowerDownRight'])
+      assert(mesh.extras.targetNames.includes(channel),id+' missing lining deformation '+channel);
+    for(const primitive of mesh.primitives){
+      assert(primitive.attributes.COLOR_0!==undefined,id+' missing depth tint');
+      assert(gltf.materials[primitive.material].pbrMetallicRoughness.roughnessFactor>.8);
+    }
   }
 });

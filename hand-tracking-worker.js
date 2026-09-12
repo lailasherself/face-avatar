@@ -1,3 +1,6 @@
+// Safari's MediaPipe build avoids OffscreenCanvas and falls back to document.createElement('canvas'),
+// which throws "Can't find variable: document" inside a worker. Route that fallback back to OffscreenCanvas.
+self.document??={createElement:tag=>tag==='canvas'?new OffscreenCanvas(1,1):{},body:{appendChild(){}}};
 let poseTracker=null,hands=null,handBusy=false,handWatchdog;
 self.onmessage=async({data})=>{
   try{

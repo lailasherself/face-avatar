@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/RoomEnvironment.js';
 import { attachEyelidSurface, EyeSignalFilter, resolveEyeAperture } from './eyelid-surface.js';
 import { AirSwipeTracker } from './air-swipe.js';
-import { HoldGesture } from './dwell-gestures.js';
+import { FleetStage } from './fleet-stage.js';
 import { armDirections } from './body-motion.js';
 import { ArmSignal } from './arm-signal.js';
 import { ArmRetargeter } from './arm-retarget.js';
@@ -15,6 +15,7 @@ import { PoseCorrectives } from './pose-correctives.js';
 import { TongueTracker } from './tongue-tracking.js';
 import { FaceTracker } from './face-tracking.js';
 import { resolveMouth, oralWeight } from './mouth-signals.js';
+import { attachSmileBite } from './smile-rig.js';
 import { ZedSource } from './zed-source.js';
 import { CameraFraming, cameraConstraints } from './camera-framing.js';
 
@@ -45,7 +46,7 @@ const controls = new OrbitControls(camera,renderer.domElement);
 controls.enableDamping = true;
 controls.enablePan = false;
 controls.enabled = setupMode;
-controls.minDistance = 2.7;controls.maxDistance=10;
+controls.minDistance = 2.7;controls.maxDistance=setupMode?10:100;
 controls.minPolarAngle = .35;controls.maxPolarAngle = Math.PI*.54;
 controls.touches.ONE = null;
 controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
@@ -61,18 +62,13 @@ const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStan
 floor.rotation.x=-Math.PI/2;floor.position.y=.02;floor.receiveShadow=true;scene.add(floor);
 
 const loader = new GLTFLoader();
+const fleetStage=new FleetStage(scene,camera);
+renderer.domElement.addEventListener('webglcontextrestored',()=>fleetStage.layout(true));
+const characterLoads=new Map();
 let manifest, current, currentIndex=0, requestId=0, bodyPose='Standing';
 let stream=null, landmarker=null, cameraRequest=0, lastVideoTime=-1, lastFaceTime=0;
 let cameraStarting=false,retryTimer=null,cameraWanted=true,lastDetectionTime=0;
 let handTracker=null,tongueTracker=null;
-// Browse vs embodied. In browse you swipe to change the character you already drive; raising
-// both palms (a deliberate, low-false-trigger confirm) commits and dollies the avatar forward.
-// While embodied, one flat palm held still steps back to browse — stillness is the discriminator
-// that keeps it from firing during expressive puppeteering (see research brief).
-const COMMIT_HOLD_MS=1200, CHANGE_HOLD_MS=800;
-let mode='browse', modeFrame=0;
-const commitGesture=new HoldGesture(2,COMMIT_HOLD_MS);
-const changeGesture=new HoldGesture(1,CHANGE_HOLD_MS);
 let zedSource=null;
 let latestFaceLandmarks=null;
 const trackedArms={};
@@ -89,38 +85,18 @@ function notice(message){$('notice').textContent=message;$('notice').hidden=!mes
 function status(message,live=false){$('tracking-status').textContent=message;$('tracking-status').classList.toggle('live',live);}
 function resetView(){
   const ty=bodyPose==='Seated'?1.48:1.7;
-  const base=setupMode?8.3:Math.max(6.7,4.7/camera.aspect);
-  // Embodied framing steps the avatar forward (closer, slightly higher) so committing reads
-  // as "you are now this character". modeFrame eases 0→1 between browse and embodied.
-  const d=base*THREE.MathUtils.lerp(1,.74,modeFrame);
-  controls.target.set(0,ty+THREE.MathUtils.lerp(0,.06,modeFrame),0);
-  camera.position.set(d*.26,controls.target.y+d*.12,d*.97);
+  const bounds=fleetStage.entries.get(currentIndex)?.bounds;
+  const size=bounds?.getSize(new THREE.Vector3())||new THREE.Vector3(3,3.7,1);
+  const center=bounds?.getCenter(new THREE.Vector3())||new THREE.Vector3(0,ty,0);
+  const tangent=Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+  const portrait=camera.aspect<1;
+  const fit=Math.max(size.y/(2*tangent*(portrait?.53:.62)),(size.x+.6)/(2*tangent*camera.aspect*.88));
+  const d=setupMode?8.3:fit+Math.max(0,bounds?.max.z||0);
+  controls.target.set(0,setupMode?ty:center.y+fit*tangent*(portrait?.4:.28),0);
+  camera.position.set(setupMode?d*.26:0,controls.target.y+(setupMode?d*.12:0),d);
   camera.zoom=1;
   camera.updateProjectionMatrix();controls.update();
-}
-const dwellFill=$('dwell-cue').querySelector('.dwell-fill');
-const dwellLabel=$('dwell-cue').querySelector('.dwell-label');
-const DWELL_CIRC=2*Math.PI*21;
-function showDwell(progress,label){
-  $('dwell-cue').hidden=false;
-  dwellFill.style.strokeDashoffset=DWELL_CIRC*(1-clamp(progress));
-  if(dwellLabel.textContent!==label)dwellLabel.textContent=label;
-}
-function hideDwell(){if(!$('dwell-cue').hidden)$('dwell-cue').hidden=true;}
-function updateModeUI(){
-  document.body.classList.toggle('embodied',mode==='embodied');
-  const prompt=$('mode-prompt');
-  if(!stream||setupMode){prompt.hidden=true;return;}
-  prompt.hidden=false;
-  prompt.innerHTML=mode==='browse'
-    ? 'Hold up <b>one hand</b> and swipe to change &nbsp;·&nbsp; raise <b>both hands</b> to become this one'
-    : `You're <b>${current?.info.name||'this character'}</b> &nbsp;·&nbsp; hold up <b>one hand</b> to switch`;
-}
-function setMode(next){
-  if(mode===next)return;
-  mode=next;
-  commitGesture.reset();changeGesture.reset();handTracker?.detector.reset();
-  $('swap-cue').hidden=true;hideDwell();updateModeUI();
+  fleetStage.layout(true);
 }
 function resize(){
   const {width,height}=$('stage').getBoundingClientRect();
@@ -133,33 +109,52 @@ function resize(){
 new ResizeObserver(resize).observe($('stage'));
 resetView();
 
-function disposeModel(gltf){
-  gltf.scene.traverse(o=>{
-    if(o.geometry)o.geometry.dispose();
-    const materials=Array.isArray(o.material)?o.material:[o.material];
-    for(const m of materials)if(m){
-      for(const v of Object.values(m))if(v?.isTexture)v.dispose();
-      m.dispose();
-    }
-    if(o.skeleton)o.skeleton.dispose();
-    o.customDepthMaterial?.dispose();
-  });
-}
 function setPose(name){
   bodyPose=name;
-  if(current){
-    const clip=THREE.AnimationClip.findByName(current.gltf.animations,name);
-    current.mixer.stopAllAction();
-    if(clip){const action=current.mixer.clipAction(clip);action.play();current.mixer.update(0);}
-    current.headRest=current.head?.quaternion.clone();
-    current.arms=new ArmRetargeter(current.gltf.scene);
-    current.collisions?.dispose();
-    current.correctives.update(bodyPose);
-    current.collisions=new ArmCollisions(current.gltf.scene,current.arms.chains);
-    current.collisions.update();current.arms.captureNeutral();
-    current.fingers=new FingerRetargeter(current.gltf.scene);
-  }
+  if(current)preparePose(current,name);
   document.querySelectorAll('[data-pose]').forEach(b=>b.classList.toggle('selected',b.dataset.pose===name));
+}
+function preparePose(record,name){
+  const clip=THREE.AnimationClip.findByName(record.gltf.animations,name);
+  record.mixer.stopAllAction();
+  for(const [bone,position,rotation,scale] of record.rest){bone.position.copy(position);bone.quaternion.copy(rotation);bone.scale.copy(scale);}
+  if(clip){record.mixer.clipAction(clip).play();record.mixer.update(0);}
+  record.headRest=record.head?.quaternion.clone();
+  record.arms=new ArmRetargeter(record.gltf.scene);
+  record.collisions?.dispose();record.correctives.update(name);
+  record.collisions=new ArmCollisions(record.gltf.scene,record.arms.chains);
+  record.collisions.update();record.arms.captureNeutral();
+  record.fingers=new FingerRetargeter(record.gltf.scene);record.pose=name;
+}
+function loadCharacter(index){
+  if(characterLoads.has(index))return characterLoads.get(index);
+  const pending=(async()=>{
+    const info=manifest.characters[index],gltf=await loader.loadAsync(info.url);
+    attachSmileBite(gltf.scene,info.smileBiteFit);
+    const meshes=[],rest=[];let head=null;
+    gltf.scene.traverse(o=>{
+      if(o.isMesh){
+        o.castShadow=true;o.receiveShadow=true;
+        if(o.isSkinnedMesh)o.frustumCulled=false;
+        if(o.morphTargetDictionary){o.morphTargetInfluences.fill(0);meshes.push(o);}
+        let owner=o;while(owner&&!owner.userData.eyelidSurfaces)owner=owner.parent;
+        if(owner)attachEyelidSurface(o,owner.userData.eyelidSurfaces);
+      }
+      if(o.isBone){rest.push([o,o.position.clone(),o.quaternion.clone(),o.scale.clone()]);if(o.name==='Head')head=o;}
+    });
+    const record={gltf,info,meshes,head,rest,mixer:new THREE.AnimationMixer(gltf.scene),correctives:new PoseCorrectives(gltf.scene,gltf.animations)};
+    preparePose(record,'Standing');fleetStage.add(index,gltf.scene);
+    return record;
+  })();
+  characterLoads.set(index,pending);
+  pending.catch(()=>characterLoads.delete(index));
+  return pending;
+}
+async function preloadCharacters(){
+  for(let i=0;i<manifest.characters.length;i++){
+    await new Promise(resolve=>setTimeout(resolve,150));
+    try{await loadCharacter(i);}catch(error){console.warn(`Background character unavailable: ${manifest.characters[i].name}`,error);}
+  }
 }
 async function selectCharacter(index){
   if(!manifest)return;
@@ -168,23 +163,13 @@ async function selectCharacter(index){
   const info=manifest.characters[index];
   $('loading').hidden=false;$('loading').textContent=`Loading ${info.name}...`;
   try{
-    const gltf=await loader.loadAsync(info.url);
-    if(generation!==requestId){disposeModel(gltf);return;}
-    const meshes=[];let head=null;let boneCount=0;
-    gltf.scene.traverse(o=>{
-      if(o.isMesh){
-        o.castShadow=true;o.receiveShadow=true;
-        if(o.isSkinnedMesh)o.frustumCulled=false;
-        if(o.morphTargetDictionary){o.morphTargetInfluences.fill(0);meshes.push(o);}
-        let owner=o;
-        while(owner&&!owner.userData.eyelidSurfaces)owner=owner.parent;
-        if(owner)attachEyelidSurface(o,owner.userData.eyelidSurfaces);
-      }
-      if(o.isBone){boneCount++;if(o.name==='Head')head=o;}
-    });
-    if(current){current.collisions?.dispose();scene.remove(current.gltf.scene);current.mixer.stopAllAction();current.mixer.uncacheRoot(current.gltf.scene);disposeModel(current.gltf);}
-    current={gltf,info,meshes,head,mixer:new THREE.AnimationMixer(gltf.scene),correctives:new PoseCorrectives(gltf.scene,gltf.animations)};
-    currentIndex=index;scene.add(gltf.scene);setPose(bodyPose);
+    const record=await loadCharacter(index);
+    if(generation!==requestId)return;
+    current=record;currentIndex=index;
+    if(record.pose!==bodyPose)preparePose(record,bodyPose);
+    fleetStage.select(index,manifest.characters.length);
+    resetView();
+    const meshes=record.meshes,boneCount=record.rest.length;
     $('character-name').textContent=info.name;
     $('character-detail').textContent=descriptions[info.id]||info.name;
     $('character-number').textContent=`${String(index+1).padStart(2,'0')} / ${String(manifest.characters.length).padStart(2,'0')}`;
@@ -246,7 +231,7 @@ function driveFace(dt,time){
   resolveEyeAperture(values);
   resolveMouth(values);
   for(const mesh of current.meshes){
-    for(const [name,i] of Object.entries(mesh.morphTargetDictionary))mesh.morphTargetInfluences[i]=oralWeight(name,values[name]||0,mesh.material?.name||'');
+    for(const [name,i] of Object.entries(mesh.morphTargetDictionary))mesh.morphTargetInfluences[i]=oralWeight(name,values[name]||0,mesh.material?.name||'',values);
   }
   smoothRotation.slerp(targetRotation,alpha);
   if(current.head&&current.headRest){
@@ -290,13 +275,12 @@ async function startCamera(){
     }
     if(generation!==cameraRequest){cancelled=true;return;}
     resetExpression();eyeSignals.reset();lastVideoTime=-1;lastFaceTime=0;lastDetectionTime=0;baseline={};
-    mode='browse';commitGesture.reset();changeGesture.reset();
     $('camera-preview').hidden=false;$('calibrate').disabled=false;
     $('camera-toggle').innerHTML='<img src="vendor/lucide/video-off.svg" alt="">Stop camera';
     status('Looking for a face');
     $('camera-retry').hidden=true;
     handTracker=new AirSwipeTracker(direction=>{
-      if(stream&&$('loading').hidden&&mode==='browse')selectCharacter(currentIndex+direction);
+      if(stream&&$('loading').hidden)selectCharacter(currentIndex+direction);
     },error=>{
       console.warn('Motion tracking unavailable:',error);
       notice('Motion tracking unavailable. Retry camera.');$('camera-retry').hidden=false;
@@ -310,29 +294,14 @@ async function startCamera(){
       }
       for(const [side,curls] of Object.entries(trackedFingerCurls(result)))trackedFingers[side]={curls,time:capturedAt};
       const cue=$('swap-cue');
-      if(mode==='browse'){
-        cue.hidden=!['holding','armed'].includes(gesture.state);
-        cue.dataset.state=gesture.state;cue.style.setProperty('--progress',gesture.progress);
-        cue.setAttribute('aria-label',gesture.state==='armed'?'Character switching ready':'Preparing character switch');
-        // Two palms held still = commit. Distinct palm count keeps it clear of the one-palm swipe.
-        const commit=commitGesture.update(result,capturedAt);
-        if(commit.fired)setMode('embodied');
-        else if(commit.progress>0)showDwell(commit.progress,`Becoming ${current?.info.name||'this one'}…`);
-        else hideDwell();
-      }else{
-        cue.hidden=true;
-        // One flat palm held still steps back to browse — orthogonal to expressive puppeteering.
-        const change=changeGesture.update(result,capturedAt);
-        if(change.fired)setMode('browse');
-        else if(change.progress>0)showDwell(change.progress,'Switch character…');
-        else hideDwell();
-      }
+      cue.hidden=!['holding','armed'].includes(gesture.state);
+      cue.dataset.state=gesture.state;cue.style.setProperty('--progress',gesture.progress);
+      cue.setAttribute('aria-label',gesture.state==='armed'?'Character switching ready':'Preparing character switch');
     },{nativeBody:zedMode,acceptResult:result=>!zedMode||result.personId===zedSource?.personId});
     tongueTracker=new TongueTracker(error=>{
       console.warn('Tongue tracking unavailable:',error);
       notice('Tongue tracking unavailable. Retry camera.');$('camera-retry').hidden=false;
     });
-    updateModeUI();
   }catch(error){
     if(generation!==cameraRequest){cancelled=true;return;}
     stopCamera(true);notice(error.name==='NotAllowedError'?'Allow camera access for this installation, then retry.':`Camera unavailable: ${error.message}`);
@@ -357,7 +326,6 @@ function stopCamera(preserveIntent=false){
   $('camera-preview').srcObject=null;$('camera-preview').hidden=true;
   $('calibrate').disabled=true;$('calibrate').innerHTML='<img src="vendor/lucide/scan-face.svg" alt="">Calibrate';calibration=null;
   $('camera-toggle').innerHTML='<img src="vendor/lucide/video.svg" alt="">Start camera';
-  $('mode-prompt').hidden=true;
   status('Camera off');resetExpression();
 }
 function resetMotion(){
@@ -366,8 +334,7 @@ function resetMotion(){
   for(const side of Object.keys(trackedArms))delete trackedArms[side];
   for(const side of Object.keys(trackedFingers))delete trackedFingers[side];
   $('swap-cue').hidden=true;
-  commitGesture.reset();changeGesture.reset();
-  mode='browse';hideDwell();updateModeUI();
+  handTracker?.detector.reset();
 }
 function trackFace(time){
   const video=$('camera-preview');
@@ -478,13 +445,10 @@ renderer.setAnimationLoop(time=>{
   for(const [side,sample] of Object.entries(trackedFingers))if(stream&&time-sample.time<400)fingers[side]=sample.curls;
   current?.fingers.update(fingers,dt);
   if(stream)target.tongueOut=tongueTracker?.value(time)||0;
-  if(!handTracker?.ready||time-handTracker.lastResultTime>400){$('swap-cue').hidden=true;hideDwell();}
-  // Ease the browse↔embodied camera dolly (installation only; setup mode keeps orbit control).
-  if(!setupMode){
-    const goal=mode==='embodied'?1:0;
-    if(Math.abs(goal-modeFrame)>.001){modeFrame+=(goal-modeFrame)*(1-Math.exp(-dt*6));resetView();}
-  }
-  driveFace(dt,time);current?.collisions.update(dt);current?.correctives.update(bodyPose);controls.update();renderer.render(scene,camera);
+  if(!handTracker?.ready||time-handTracker.lastResultTime>400)$('swap-cue').hidden=true;
+  driveFace(dt,time);current?.collisions.update(dt);current?.correctives.update(bodyPose);controls.update();
+  if(setupMode)fleetStage.layout(true);
+  fleetStage.renderBackdrop(renderer);renderer.render(scene,camera);
 });
 
 try{
@@ -506,7 +470,9 @@ try{
   }));
   const initial=manifest.characters.findIndex(c=>c.id===new URLSearchParams(location.search).get('character'));
   await selectCharacter(Math.max(0,initial));
-  await startCamera();
+  const cameraReady=startCamera();
+  void preloadCharacters();
+  await cameraReady;
   if(params.has('framing'))$('camera-framing').showModal();
 }catch(error){console.error(error);$('loading').hidden=true;notice(error.message);}
 
@@ -532,6 +498,6 @@ if(new URLSearchParams(location.search).has('qa'))Object.defineProperty(window,'
   tongueInferenceMs:tongueTracker?.inferenceMs||0,tongueCropAgeMs:tongueTracker?.cropAgeMs||0,
   tongueDroppedFrames:tongueTracker?.droppedFrames||0,
   swapState:handTracker?.detector.state||'idle',swapReason:handTracker?.detector.reason||'waiting',trackedArms:Object.keys(trackedArms).filter(s=>performance.now()-trackedArms[s].time<400),
-  mode,modeFrame,commitState:commitGesture.state,commitProgress:commitGesture.progress,changeState:changeGesture.state,changeProgress:changeGesture.progress,
+  stage:fleetStage.snapshot(),loadedCharacters:fleetStage.entries.size,backdropFrames:fleetStage.backdropFrames,
   cameraPosition:camera.position.toArray(),renderFrame:renderer.info.render.frame
 })});

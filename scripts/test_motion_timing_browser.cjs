@@ -35,6 +35,7 @@ window.armState=side=>current.arms.chains[side].flatMap(({bone})=>bone.quaternio
   });
   await page.goto('http://localhost:8014/cockpit.html?qa&assets=3dai',{waitUntil:'networkidle'});
   await page.waitForFunction(()=>window.fleetQA?.handTrackingReady&&fleetQA.handTrackingFrames>2,null,{timeout:60000});
+  await page.waitForFunction(count=>fleetQA.loadedCharacters===count,rosterIds.length,{timeout:120000});
   await page.evaluate(async()=>{
    const {bodyPose}=await import('/scripts/motion-fixtures.mjs');window.injectMotion=true;
    window.setMotion=(raised,crossTalk=false)=>{

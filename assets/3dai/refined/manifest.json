@@ -51,15 +51,6 @@
       "reference": "zF0uXa"
     },
     {
-      "id": "coral",
-      "name": "Coral",
-      "url": "assets/3dai/refined/coral.glb",
-      "thumbnail": "assets/3dai/refined/thumbnails/coral.png",
-      "bones": 42,
-      "sourceTaskId": "f852429a-8c8c-439a-b073-02fefb4e9421",
-      "reference": "nkmqsW"
-    },
-    {
       "id": "sprout",
       "name": "Sprout",
       "url": "assets/3dai/refined/sprout.glb",
@@ -76,6 +67,17 @@
       "bones": 42,
       "sourceTaskId": "68b47717-cbeb-4987-b9e2-c3306e38c161",
       "reference": "ppDO39"
+    }
+  ],
+  "pausedCharacters": [
+    {
+      "id": "coral",
+      "name": "Coral",
+      "url": "assets/3dai/refined/coral.glb",
+      "thumbnail": "assets/3dai/refined/thumbnails/coral.png",
+      "bones": 42,
+      "sourceTaskId": "f852429a-8c8c-439a-b073-02fefb4e9421",
+      "reference": "nkmqsW"
     }
   ]
 }

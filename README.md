@@ -64,11 +64,26 @@ the same port and profile for unattended launches. Then close the setup browser 
 launcher, and run the normal launch command. The app retries disconnected cameras.
 
 `cockpit.html?setup` exposes operator-only calibration and model inspection controls.
-The installation defaults to Orbit, Cosmic, Nebula, Kudzu, Clay, Coral, Summer,
+The installation defaults to Orbit, Cosmic, Nebula, Kudzu, Clay, Summer,
 and Glass, with 52 facial controls each. The new roster is active for movement
 testing, not hardware-approved. Orbit and Coral now use their new supplied-image
 rigs, including teeth, long tongues and articulated native hands/flippers.
+Their latest revision adds sculpted facial volume and body folds, with pigment,
+relief and roughness sampled from the locked original PNGs. Separate 2048px head,
+body and detail atlases retain the animated meshes, glossy eyes and oral details.
+The Blender sources preserve the bone, weight and facial-channel contracts.
+Hidden surfaces use cloned skin samples; this is not an exact 3D reconstruction.
+`node scripts/test_supplied_surface_browser.cjs` checks their runtime expression
+renders; `scripts/paint_reference_surfaces.py` contains the staged Blender workflow.
+Coral is temporarily paused in all website rosters and excluded from the published
+bundle; its models, textures and Blender sources remain saved for further work.
 Left/right arrows change characters.
+The selected alien is centered and live. The other six are visible, stationary
+behind it; a deliberate air swipe selects and immediately drives the next alien.
+There is no separate two-hand confirmation or mode that disables switching.
+Characters preload after camera startup and are reused on selection. Background
+figures are neutral 3D snapshots with a cached render, not additional tracked rigs.
+Only the selected character runs facial, arm, finger and collision updates.
 The vehicle is not loaded; its original files are preserved. The authoritative
 roster is `assets/3dai/manifest.json`; it selects the current GLBs without merging
 in old character IDs. New sources are in `blender/likeness-trials/`, with Nebula
@@ -131,9 +146,28 @@ No camera images are uploaded. `body-motion.js` maps the observed limb direction
 Tests: `node --test scripts/test_air_swipe.mjs scripts/test_arm_collisions.mjs`. Real-camera sensitivity and
 GEEKOM/Orin performance still need on-site verification.
 
+`node scripts/test_fleet_stage_browser.cjs` checks active-roster visibility, stationary
+backgrounds, cached switching, one active rig and landscape/portrait rendering.
+`node scripts/test_mode_gestures_browser.cjs` replays the real hand model to verify
+two palms cannot lock switching and only an armed swipe changes the live character.
+These browser tests require Playwright, Chrome and the local installation server;
+the hand replay also uses the local `.context/qa/right_hands.jpg` fixture.
+
 Live eyes reject isolated camera-tracking spikes before smoothing. Blinks stay
 independent and override competing squint/wide signals; brief face-detection gaps
 retain the last expression. Tests: `node --test scripts/test_eye_signals.mjs`.
+
+Bilateral smiles retract both lips while a separate dental signal keeps the bite
+nearly closed. `smile-rig.js` adds a smile-only, head-skinned dental alignment morph
+at load time without changing the loaded rig's neutral tooth positions. Kudzu and
+Clay have bounded fit adjustments in the active manifest. Talking and tongue
+extension release the bite correction; deliberate lip closure suppresses it.
+`node scripts/test_smile_teeth_browser.cjs` compares visible dental pixels across
+all active rigs against the recorded previous mixer, checks upper/lower rows
+separately and verifies unchanged neutral mouths. `SMILE_PHOTO=1` uses expression
+scores measured locally from the supplied smile photo, without publishing the photo.
+Clay, Nebula and Glass also include revised Blender-authored mouth cavities;
+see [mouth interior notes](blender/mouth-interiors.md) for source changes and limits.
 
 ## Legacy Head-Only App
 

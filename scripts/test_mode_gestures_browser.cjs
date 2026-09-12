@@ -1,10 +1,5 @@
-// Functional test for the browse/embodied mode machine and its dwell gestures.
-// Reuses the real MediaPipe hand model (replaying .context/qa/right_hands.jpg) exactly like
-// test_air_swipe_browser.cjs, but drives each hand's raise independently so we can exercise:
-//   - two raised palms held still  -> COMMIT (browse -> embodied), avatar dollies in
-//   - one raised palm held still   -> CHANGE (embodied -> browse)
-//   - moving palms never fire the dwell (stillness is the discriminator)
-//   - swipe is disabled while embodied
+// Regression: two raised palms must not lock character switching. The centered
+// character is always live; a deliberate one-palm swipe transfers ownership.
 const {chromium}=require('playwright');
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
@@ -65,7 +60,7 @@ const assert=require('node:assert/strict');
     }
     const data=await send({type:'frame',time,frame:await createImageBitmap(canvas),body:{poseLandmarks,poseWorldLandmarks:[],handHints}});
     motionWorker.dispatchEvent(new MessageEvent('message',{data:{...data,synthetic:true}}));
-    const q=fleetQA,sample={detected:data.result.landmarks.length,mode:q.mode,commit:+q.commitProgress.toFixed(2),change:+q.changeProgress.toFixed(2),commitState:q.commitState,changeState:q.changeState,character:q.character,modeFrame:+q.modeFrame.toFixed(2)};
+    const q=fleetQA,sample={detected:data.result.landmarks.length,state:q.swapState,character:q.character};
     gestureSamples.push(sample);return sample;
    };
   });
@@ -76,44 +71,29 @@ const assert=require('node:assert/strict');
    throw Error(label+' never happened: '+JSON.stringify(await page.evaluate(()=>gestureSamples.slice(-8))));
   };
 
-  // Sanity: start in browse, character loaded.
-  assert.equal(await page.evaluate(()=>fleetQA.mode),'browse');
+  await page.waitForFunction(count=>fleetQA.loadedCharacters===count,require('../assets/3dai/manifest.json').characters.length,{timeout:120000});
   assert.equal(await page.evaluate(()=>fleetQA.character),'orbit');
-
-  // 1) Two raised palms held still -> both detected, commit progress climbs, mode -> embodied.
-  const committed=await holdUntil({raiseLeft:true,raiseRight:true},s=>s.mode==='embodied','commit (two palms held)');
-  assert.equal(committed.detected,2,'both palms must be seen during commit');
-  assert.equal(committed.mode,'embodied');
-  // Camera dollies forward (modeFrame eases toward 1).
-  await page.waitForFunction(()=>fleetQA.modeFrame>.5,null,{timeout:4000});
-
-  // 2) While embodied, a one-hand lateral SWEEP must not switch characters (swipe disabled)
-  //    and must not fire the change dwell (it is moving, not still).
-  for(const x of [300,360,420,480,540,600]){await send({raiseLeft:true,raiseRight:false,leftX:x});await page.waitForTimeout(30);}
-  assert.equal(await page.evaluate(()=>fleetQA.character),'orbit','swipe must be disabled while embodied');
-  assert.equal(await page.evaluate(()=>fleetQA.mode),'embodied','a moving palm must not step back to browse');
-
-  // Drop hands so the change detector is unlatched before the deliberate hold.
-  for(let i=0;i<4;i++){await send({raiseLeft:false,raiseRight:false});await page.waitForTimeout(40);}
-
-  // 3) One raised palm held still -> change dwell fires, mode -> browse, avatar dollies back.
-  const returned=await holdUntil({raiseLeft:true,raiseRight:false,leftX:360},s=>s.mode==='browse','change (one palm held)');
-  assert.equal(returned.mode,'browse');
-  await page.waitForFunction(()=>fleetQA.modeFrame<.5,null,{timeout:4000});
-
-  // 4) In browse, two palms that keep MOVING must NOT commit (stillness resets the dwell).
-  for(let i=0;i<4;i++){await send({raiseLeft:false,raiseRight:false});await page.waitForTimeout(40);}
-  let moved=null;
-  for(const x of [260,300,340,380,420,460,500,540,500,460,420,380]){moved=await send({raiseLeft:true,raiseRight:true,leftX:x,rightX:x+340});await page.waitForTimeout(40);}
-  assert.equal(await page.evaluate(()=>fleetQA.mode),'browse','moving two palms must not commit');
-  assert.ok(moved.commit<1,'commit dwell must not complete while palms are moving');
+  const camera=await page.evaluate(()=>fleetQA.cameraPosition);
+  for(let i=0;i<35;i++){await send({raiseLeft:true,raiseRight:true});await page.waitForTimeout(40);}
+  assert.equal(await page.evaluate(()=>fleetQA.character),'orbit','two palms do not select or commit');
+  assert.deepEqual(await page.evaluate(()=>fleetQA.cameraPosition),camera,'no hidden mode dolly');
+  for(let i=0;i<8;i++){await send({raiseLeft:false,raiseRight:false});await page.waitForTimeout(40);}
+  for(const x of [300,360,420,480,540,600]){await send({leftX:x});await page.waitForTimeout(30);}
+  assert.equal(await page.evaluate(()=>fleetQA.character),'orbit','an unarmed expressive sweep does not select');
+  for(let i=0;i<8;i++){await send({raiseLeft:false,raiseRight:false});await page.waitForTimeout(40);}
+  await holdUntil({leftX:300},s=>s.state==='armed','one palm arms switching');
+  for(const x of [340,380,420,460,500,540,580]){await send({leftX:x});await page.waitForTimeout(35);}
+  await page.waitForFunction(()=>fleetQA.character==='cosmic');
+  const stage=await page.evaluate(()=>fleetQA.stage);
+  assert.equal(stage.filter(e=>e.active).length,1);
+  assert.equal(stage.filter(e=>e.background).length,require('../assets/3dai/manifest.json').characters.length-1);
+  assert(stage.find(e=>e.index===1).active,'swipe transfers the live rig');
 
   const samples=await page.evaluate(()=>{photoWorker.terminate();return gestureSamples;});
-  assert(samples.some(s=>s.detected===2&&s.commitState==='holding'),'commit dwell must engage with two raised palms');
-  assert(samples.some(s=>s.changeState==='holding'),'change dwell must engage with one raised palm');
+  assert(samples.some(s=>s.detected===2),'both palms detected with the real hand model');
   assert.equal(await page.evaluate(()=>cameraRequests),1,'exactly one camera start');
   assert.deepEqual(errors,[],'no page errors');
   fs.writeFileSync('.context/qa/mode-gestures.json',JSON.stringify({samples,errors,realHandModel:true,simulatedBodyHints:true,physicalCameraTested:false},null,2));
-  console.log('PASS browse->(two-palm commit)->embodied; swipe disabled + moving palm ignored; (one-palm hold)->browse; moving two palms never commit');
+  console.log('PASS two palms never lock selection; unarmed sweep ignored; deliberate swipe transfers the only live rig');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
