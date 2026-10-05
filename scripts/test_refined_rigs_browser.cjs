@@ -1,7 +1,12 @@
 const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const ids=(process.env.RIG_IDS||'orbit,pearl,juno,fuzz,clementine,coral,sprout,atl').split(',');
+// Validates the archived "refined" rig format (baked Seated/Arms animation clips and
+// correctiveArmsUp morphs). The shipping rigs no longer use that format; their arm-pose
+// strain is covered by test_arm_collisions_browser and test_arm_fluidity_browser. Runs
+// against assets/3dai/refined via ?rigs=refined.
+const roster=require('../assets/3dai/refined/manifest.json').characters.map(c=>c.id);
+const ids=(process.env.RIG_IDS||roster.join(',')).split(',');
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  const report=[];
@@ -9,11 +14,6 @@ const ids=(process.env.RIG_IDS||'orbit,pearl,juno,fuzz,clementine,coral,sprout,a
   const page=await browser.newPage({viewport:{width:1440,height:1080}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   page.on('console',message=>{if(message.type()==='error'&&/shader|WebGL|GL_INVALID|THREE/i.test(message.text()))errors.push(message.text());});
-  await page.route('**/assets/3dai/manifest.json',async route=>{
-   const response=await route.fetch(),data=await response.json();
-   for(const c of data.characters)if(ids.includes(c.id)){c.url=`assets/3dai/refined/${c.id}.glb`;c.bones=c.id==='pearl'?50:c.id==='fuzz'?45:42;}
-   await route.fulfill({response,json:data});
-  });
   await page.route('**/fleet.js',async route=>{
    const response=await route.fetch();let body=await response.text();
    body=body.replace('current?.fingers.update(fingers,dt);','if(!window.rigPoseTest)current?.fingers.update(fingers,dt);');
@@ -54,13 +54,13 @@ const ids=(process.env.RIG_IDS||'orbit,pearl,juno,fuzz,clementine,coral,sprout,a
    };`;
    await route.fulfill({response,body});
   });
-  await page.goto('http://localhost:8014/cockpit.html?qa&assets=3dai',{waitUntil:'networkidle'});
+  await page.goto('http://localhost:8014/cockpit.html?qa&assets=3dai&rigs=refined',{waitUntil:'networkidle'});
   await page.waitForFunction(()=>window.fleetQA?.character==='orbit');
   // These source-clip deformation checks were baked around the seated base.
   await page.evaluate(()=>document.querySelector('[data-pose="Seated"]').click());
   const vehicle=await page.evaluate(()=>fleetQA.vehicleUUID);
   for(const id of ids){
-   await page.evaluate(id=>{window.rigPoseTest='Seated';window.rigFingerTest={};document.querySelectorAll('.character')[['orbit','pearl','juno','fuzz','clementine','coral','sprout','atl'].indexOf(id)].click();},id);
+   await page.evaluate(({id,index})=>{window.rigPoseTest='Seated';window.rigFingerTest={};document.querySelectorAll('.character')[index].click();},{id,index:roster.indexOf(id)});
    await page.waitForFunction(id=>fleetQA.character===id,id);
    await page.waitForTimeout(700);
    const initial=await page.evaluate(()=>fleetQA);

@@ -2,6 +2,7 @@ const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const out='.context/qa/mouth-combinations/'+(process.env.MOUTH_PASS||'before');fs.mkdirSync(out,{recursive:true});
+const roster=require('../assets/3dai/manifest.json').characters.map(c=>c.id);
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  try{
@@ -43,8 +44,8 @@ window.captureMouth=()=>{
    }
    return {flipped,changed,stretched};
   };
-  for(const id of (process.env.RIG_IDS||'orbit,pearl,juno,fuzz,clementine,coral,sprout,atl').split(',')){
-   await page.evaluate(id=>document.querySelectorAll('.character')[['orbit','pearl','juno','fuzz','clementine','coral','sprout','atl'].indexOf(id)].click(),id);
+  for(const id of (process.env.RIG_IDS||roster.join(',')).split(',')){
+   await page.evaluate(index=>document.querySelectorAll('.character')[index].click(),roster.indexOf(id));
    await page.waitForFunction(id=>fleetQA.character===id,id);await page.evaluate(()=>setMouth({}));await page.waitForTimeout(600);
    await page.evaluate(()=>mouthView());const base=await page.evaluate(()=>captureMouth());
    await page.screenshot({path:out+'/'+id+'-neutral.png'});

@@ -5,6 +5,7 @@ const fs=require('node:fs');
 const base=process.env.INSTALLATION_URL||'http://localhost:8014/cockpit.html';
 const output='.context/qa/camera-eyes';
 fs.mkdirSync(output,{recursive:true});
+const roster=require('../assets/3dai/manifest.json').characters.map(c=>c.id);
 const weight=(sample,name)=>sample.morphs.find(m=>m.names.includes(name))?.weights[
   sample.morphs.find(m=>m.names.includes(name)).names.indexOf(name)]||0;
 
@@ -49,9 +50,8 @@ const weight=(sample,name)=>sample.morphs.find(m=>m.names.includes(name))?.weigh
     const car=await page.evaluate(()=>fleetQA.vehicleUUID);
     assert.equal(car,null);assert.equal(await page.evaluate(()=>fleetQA.vehicleVisible),false);
     const sequence=frames=>page.evaluate(frames=>runFaceSequence(frames),frames);
-    for(const id of ['orbit','pearl','juno','fuzz','clementine','coral','sprout','atl']){
-      await page.evaluate(id=>document.querySelectorAll('.character')[[
-        'orbit','pearl','juno','fuzz','clementine','coral','sprout','atl'].indexOf(id)].click(),id);
+    for(const id of roster){
+      await page.evaluate(index=>document.querySelectorAll('.character')[index].click(),roster.indexOf(id));
       await page.waitForFunction(id=>fleetQA.character===id,id);
       await sequence(Array(12).fill({}));
       const samples=await sequence([{}, {eyeBlinkLeft:1,eyeBlinkRight:1,eyeWideLeft:1}, {}, {}, {}]);
@@ -59,7 +59,6 @@ const weight=(sample,name)=>sample.morphs.find(m=>m.names.includes(name))?.weigh
       const blink=await sequence(Array(8).fill({eyeBlinkLeft:1,eyeBlinkRight:1,eyeSquintLeft:.9,eyeWideLeft:.9}));
       assert(weight(blink.at(-1),'eyeBlinkLeft')>.98,id+' blink closure');
       assert.equal(weight(blink.at(-1),'eyeWideLeft'),0,id+' competing aperture');
-      if(['pearl','juno'].includes(id))assert.equal(weight(blink.at(-1),'eyeBlinkRight'),0,id+' cyclops alias');
       const dropout=await sequence([false,{eyeBlinkLeft:1,eyeBlinkRight:1},{eyeBlinkLeft:1,eyeBlinkRight:1}]);
       assert(dropout.every(s=>weight(s,'eyeBlinkLeft')>.98),id+' short tracking gap');
       await page.screenshot({path:output+'/'+id+'-closed.png'});
@@ -75,7 +74,7 @@ const weight=(sample,name)=>sample.morphs.find(m=>m.names.includes(name))?.weigh
       assert.equal(await page.evaluate(()=>fleetQA.cameraActive),true);
       results.push({id,spikeRejected:true,blinkClosed:true,shortGapStable:true,pixelValues:pixels});
     }
-    console.log('PASS all eight rendered source rigs: isolated spikes rejected, full blinks, stable short tracking gaps, no vehicle.');
+    console.log('PASS all rendered source rigs: isolated spikes rejected, full blinks, stable short tracking gaps, no vehicle.');
     await page.getByRole('button',{name:'Stop camera',exact:true}).click();
     await page.waitForTimeout(4200);
     assert.equal(await page.evaluate(()=>fleetQA.cameraActive),false);

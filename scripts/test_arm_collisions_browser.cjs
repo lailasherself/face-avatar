@@ -1,7 +1,8 @@
 const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const ids=(process.env.RIG_IDS||'orbit,pearl,juno,fuzz,clementine,coral,sprout,atl').split(',');
+const roster=require('../assets/3dai/manifest.json').characters.map(c=>c.id);
+const ids=(process.env.RIG_IDS||roster.join(',')).split(',');
 const out='.context/qa/'+(process.env.ARM_PASS||'arm-collisions');fs.mkdirSync(out,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
@@ -44,7 +45,7 @@ window.collisionState=()=>({surface:${process.env.MEASURE_SURFACE?'surfaceStrain
   await page.goto('http://localhost:8014/cockpit.html?qa&assets=3dai');
   await page.waitForFunction(()=>window.fleetQA?.character);
   for(const id of ids){
-   await page.evaluate(id=>{window.testArms={};document.querySelectorAll('.character')[['orbit','pearl','juno','fuzz','clementine','coral','sprout','atl'].indexOf(id)].click();},id);
+   await page.evaluate(({id,index})=>{window.testArms={};document.querySelectorAll('.character')[index].click();},{id,index:roster.indexOf(id)});
    await page.waitForFunction(id=>fleetQA.character===id,id);await page.waitForTimeout(500);
    const rest=await page.evaluate(()=>collisionState()),states=[];
    assert.equal(rest.hulls,2,id+' body envelopes');

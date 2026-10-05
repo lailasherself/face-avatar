@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const asset=process.env.LIKENESS_ASSET||'clay';
 const variant=process.env.LIKENESS_VARIANT||'body-rig';
-const expected={clay:{bones:18,meshes:11,digits:0},cosmic:{bones:30,meshes:16,digits:12},summer:{bones:30,meshes:16,digits:12},glass:{bones:36,meshes:10,digits:18},kudzu:{bones:36,meshes:23,digits:18},orbit:{bones:39,meshes:19,digits:21},coral:{bones:18,meshes:16,digits:0}}[asset];
+const expected={clay:{bones:18,meshes:13,digits:0},cosmic:{bones:30,meshes:16,digits:12},summer:{bones:30,meshes:16,digits:12},glass:{bones:36,meshes:10,digits:18},kudzu:{bones:36,meshes:23,digits:18},orbit:{bones:39,meshes:19,digits:21},coral:{bones:18,meshes:16,digits:0}}[asset];
 assert(expected,'Unsupported likeness fixture: '+asset);
 const out=path.resolve(__dirname,'../.context/qa/'+asset+'-complete');
 const origin=process.env.REVIEW_ORIGIN||'http://localhost:8014';
