@@ -26,12 +26,18 @@
 #swap-cue .swap-progress{height:5px;background:#e8bd64}
 #swap-cue[data-state=armed]{border-color:#d2f38c;background:#234038f5}
 #swap-cue[data-state=armed] .swap-progress{background:#d2f38c}
+/* Tell the visitor what the ring is waiting for; a silent progress bar reads as broken. */
+#swap-cue{height:auto;width:176px;flex-wrap:wrap;row-gap:6px;padding:10px 12px 13px}
+#swap-cue::after{flex-basis:100%;text-align:center;font:600 12px/1.2 system-ui,sans-serif;color:#fff;content:'Hold your palm still'}
+#swap-cue[data-state=armed]::after{content:'Swipe left or right'}
 #camera-preview{object-fit:contain;background:#101413}
 #camera-framing{width:min(1100px,calc(100% - 32px));max-height:92dvh;padding:16px;border:1px solid #bacbbd;border-radius:6px;background:#f9fbf9;color:#23322e;overflow:auto}
 #camera-framing::backdrop{background:#101413b3}
 .framing-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
 .framing-heading h2{font-size:16px}
 #camera-framing canvas{display:block;width:100%;height:auto;max-height:65dvh;object-fit:contain;background:#101413;transform:scaleX(-1)}
-.framing-readings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0 0;font-size:12px}
+.framing-heading h2{margin-right:auto}
+#save-trace{white-space:nowrap;padding:6px 10px;font-size:12px;border:1px solid #bacbbd;border-radius:4px;background:#fff;color:#23322e;cursor:pointer}
+.framing-readings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0 0;font-size:12px}
 .framing-readings dt{color:#64736a;margin-bottom:5px}.framing-readings dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .framing-readings [data-state=near-edge],.framing-readings [data-state=outside-frame]{color:#925211}

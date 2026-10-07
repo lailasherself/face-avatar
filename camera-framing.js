@@ -23,14 +23,44 @@ export class CameraFraming {
     this.video=video;this.dialog=dialog;this.canvas=dialog.querySelector('canvas');
     this.ctx=this.canvas.getContext('2d');this.reset();
   }
-  reset(){this.pose=null;this.poseTime=-Infinity;this.lastDraw=-Infinity;}
-  update(body,time){
+  reset(){this.pose=null;this.poseTime=-Infinity;this.lastDraw=-Infinity;this.hands=null;this.gesture=null;}
+  update(body,time,gesture){
     if(body?.poseLandmarks&&Number.isFinite(time)&&time>=this.poseTime){this.pose=body.poseLandmarks;this.poseTime=time;}
+    // Hand results carry crops and the air-swipe state; pose-only results do not.
+    if(body?.handDiagnostics&&Number.isFinite(time)&&time>=(this.hands?.time??-Infinity)){
+      this.hands={landmarks:body.landmarks||[],diagnostics:body.handDiagnostics,time};
+      this.gesture=gesture?{state:gesture.state,reason:gesture.reason,progress:gesture.progress,point:gesture.lastPoint,bodyWidth:gesture.bodyWidth}:null;
+    }
+  }
+  gestureReport(now){
+    const hands=this.hands,fresh=hands&&now-hands.time<=400;
+    if(!fresh)return {hands:'Not tracked',gesture:'Waiting'};
+    const d=hands.diagnostics,g=this.gesture;
+    const labels={holding:'Holding',armed:'Ready, swipe now',cooldown:'Switched',idle:'Idle'};
+    return {
+      hands:`${d.detected||0} seen, ${d.mapped??hands.landmarks.length} matched (${d.mode||'full-frame'}, ${Math.round(d.inferenceMs||0)} ms)`,
+      gesture:g?`${labels[g.state]||g.state} · ${g.reason}${g.state==='holding'?` ${Math.round(g.progress*100)}%`:''}`:'Waiting',
+    };
   }
   snapshot(now=performance.now()){
     const settings=this.video.srcObject?.getVideoTracks()[0]?.getSettings()||{};
     return {width:this.video.videoWidth,height:this.video.videoHeight,resizeMode:settings.resizeMode??'unreported',
       ...armFraming(this.pose,this.poseTime,now,this.confidence)};
+  }
+  drawHands(now,width,height){
+    const {ctx}=this,hands=this.hands;
+    if(!hands||now-hands.time>400)return;
+    const d=hands.diagnostics,sx=width/(d.sourceWidth||width),sy=height/(d.sourceHeight||height);
+    ctx.lineWidth=Math.max(1.5,width/600);ctx.setLineDash([width/120,width/160]);ctx.strokeStyle='#9ec5ff';
+    for(const c of d.crops||[])ctx.strokeRect(c.x*sx,c.y*sy,c.size*sx,c.size*sy);
+    ctx.setLineDash([]);ctx.fillStyle='#ff8ad0';
+    for(const hand of hands.landmarks)for(const p of hand){ctx.beginPath();ctx.arc(p.x*width,p.y*height,Math.max(2,width/320),0,Math.PI*2);ctx.fill();}
+    const g=this.gesture;
+    if(g?.point){
+      // The detector mirrors palm x into the visitor's view; the canvas is mirrored by CSS.
+      ctx.strokeStyle={holding:'#f5bd5c',armed:'#62dbac',cooldown:'#ffffff'}[g.state]||'#9ec5ff';ctx.lineWidth=Math.max(3,width/200);
+      ctx.beginPath();ctx.arc((1-g.point.x)*width,g.point.y*height,Math.max(10,width/40),0,Math.PI*2);ctx.stroke();
+    }
   }
   draw(now){
     if(!this.dialog.open||now-this.lastDraw<100)return;
@@ -47,7 +77,10 @@ export class CameraFraming {
       output.textContent=active?names[report[side]]:'Camera off';output.dataset.state=report[side];
     }
     this.dialog.querySelector('[data-capture]').textContent=active?`${width} x ${height}`:'Camera off';
+    const gesture=this.gestureReport(now);
+    for(const [key,text] of Object.entries(gesture)){const el=this.dialog.querySelector(`[data-${key}]`);if(el)el.textContent=active?text:'Camera off';}
     if(!active)return;
+    this.drawHands(now,width,height);
     ctx.lineWidth=Math.max(2,width/400);
     ctx.setLineDash([width/100,width/100]);ctx.strokeStyle='#e8c15b';
     ctx.strokeRect(width*.08,height*.08,width*.84,height*.84);ctx.setLineDash([]);

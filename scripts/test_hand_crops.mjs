@@ -75,3 +75,27 @@ test('capture preserves source detail and releases stale bitmaps without schedul
     assert.equal(worker.frames.length,1);assert.equal(worker.frames[0].body.poseLandmarks.length,33);
   }finally{t.stop();globalThis.Worker=Original;globalThis.createImageBitmap=bitmap;}
 });
+test('fingertips extrapolated just past the crop edge keep the hand; a real tile crossing does not',()=>{
+  const crops=handCrops(body(),960,540);
+  const inside=Array.from({length:21},()=>({x:.25,y:.5,z:0}));
+  inside[12].y=1.05;inside[8].x=-.03;
+  assert.equal(restoreHands({landmarks:[inside]},crops).landmarks.length,1);
+  const crossing=Array.from({length:21},()=>({x:.25,y:.5,z:0}));
+  crossing[12].x=.56;
+  assert.equal(restoreHands({landmarks:[crossing]},crops).landmarks.length,0);
+});
+test('a close seated visitor with the elbow out of frame still gets a crop that contains the fingertips',()=>{
+  // Shoulders span 41% of a 960x540 frame; wrist at (.80,.64), knuckles ~.06 above it, elbow below the frame.
+  const b={poseLandmarks:Array.from({length:33},()=>({...point(0,0),visibility:0}))};
+  for(const [i,x,y] of [[11,.55,.85],[12,.14,.82],[15,.80,.64],[17,.83,.49],[19,.74,.47],[21,.70,.56]])b.poseLandmarks[i]=point(x,y);
+  const [crop]=handCrops(b,960,540);
+  assert.equal(crop.side,'R');
+  // Fingertips sit roughly 2.2x the wrist-to-knuckle distance beyond the wrist.
+  const tip={x:(.80+(.74-.80)*2.2)*960,y:(.64+(.47-.64)*2.2)*540};
+  assert(tip.y>=crop.y&&tip.y<=crop.y+crop.size,`fingertip y ${tip.y} outside crop ${crop.y}..${crop.y+crop.size}`);
+  assert(tip.x>=crop.x&&tip.x<=crop.x+crop.size);
+  // Without knuckles the old wrist-centred crop misses the same fingertips.
+  for(const i of [17,19,21])b.poseLandmarks[i].visibility=0;
+  const [legacy]=handCrops(b,960,540);
+  assert(tip.y<legacy.y,'regression fixture no longer reproduces the spill');
+});

@@ -27,6 +27,8 @@ const $ = (id) => document.getElementById(id);
 const clamp = (v, lo=0, hi=1) => Math.min(hi, Math.max(lo, v));
 const params=new URLSearchParams(location.search);
 const setupMode=params.has('setup');
+// The hold/swipe progress cue is an operator aid; the public display stays clean unless ?cue is set.
+const showSwipeCue=params.has('cue');
 const arMode=params.has('ar')&&!setupMode;
 const photoConfig=setupMode||arMode?{enabled:false}:await photoConfiguration();
 const photoEnabled=!setupMode&&!arMode&&(photoConfig.enabled&&(photoConfig.mode!=='cloud'||photoConfig.operator)||params.has('photos')&&photoConfig.mode!=='cloud');
@@ -352,14 +354,14 @@ async function startCamera(){
       resetMotion();
     },(result,gesture,capturedAt)=>{
       if(zedMode&&result.personId!==zedSource?.personId)return;
-      framing.update(result,capturedAt);
+      framing.update(result,capturedAt,gesture);
       if(!zedMode){
         const arms=armSignal.update(armDirections(result.poseLandmarks,result.poseWorldLandmarks,result.aspectRatio),capturedAt);
         for(const [side,directions] of Object.entries(arms))if(capturedAt>(trackedArms[side]?.time??-Infinity))trackedArms[side]={directions,time:capturedAt};
       }
       for(const [side,curls] of Object.entries(trackedFingerCurls(result)))trackedFingers[side]={curls,time:capturedAt};
       const cue=$('swap-cue');
-      cue.hidden=!['holding','armed'].includes(gesture.state);
+      cue.hidden=!showSwipeCue||!['holding','armed'].includes(gesture.state);
       cue.dataset.state=gesture.state;cue.style.setProperty('--progress',gesture.progress);
       cue.setAttribute('aria-label',gesture.state==='armed'?'Character switching ready':'Preparing character switch');
     },{nativeBody:zedMode,acceptResult:result=>!zedMode||result.personId===zedSource?.personId});
@@ -469,6 +471,11 @@ $('next').onclick=()=>selectCharacter(currentIndex+1);
 $('camera-toggle').onclick=()=>stream?stopCamera():startCamera();
 $('camera-framing-toggle').onclick=()=>{$('camera-framing').showModal();framing.draw(performance.now());};
 $('close-framing').onclick=()=>$('camera-framing').close();
+$('save-trace').onclick=()=>{
+  const trace={savedAt:new Date().toISOString(),framing:framing.snapshot(),diagnostics:handTracker?.handDiagnostics||null,trace:handTracker?.trace||[]};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(trace)],{type:'application/json'}));
+  a.download=`swipe-trace-${Date.now()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
 $('camera-framing').addEventListener('close',()=>{
   const url=new URL(location.href);url.searchParams.delete('framing');history.replaceState(null,'',url);
 });
@@ -598,7 +605,7 @@ if(new URLSearchParams(location.search).has('qa'))Object.defineProperty(window,'
   tongueScore:tongueTracker?.raw||0,tongueLatencyMs:tongueTracker?.latencyMs||0,
   tongueInferenceMs:tongueTracker?.inferenceMs||0,tongueCropAgeMs:tongueTracker?.cropAgeMs||0,
   tongueDroppedFrames:tongueTracker?.droppedFrames||0,
-  swapState:handTracker?.detector.state||'idle',swapReason:handTracker?.detector.reason||'waiting',trackedArms:Object.keys(trackedArms).filter(s=>performance.now()-trackedArms[s].time<400),
+  swapState:handTracker?.detector.state||'idle',swapReason:handTracker?.detector.reason||'waiting',swipeTrace:handTracker?.trace||[],trackedArms:Object.keys(trackedArms).filter(s=>performance.now()-trackedArms[s].time<400),
   stage:fleetStage.snapshot(),loadedCharacters:fleetStage.entries.size,backdropFrames:fleetStage.backdropFrames,
   cameraPosition:camera.position.toArray(),renderFrame:renderer.info.render.frame
 })});

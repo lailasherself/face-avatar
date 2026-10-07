@@ -1,7 +1,10 @@
-import {raisedPalmBodySide,visible} from './body-motion.js';
+import {raisedPalmBodySide,handLowered,shoulderWidth} from './body-motion.js';
 import {trackedFingerCurls} from './finger-motion.js';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const HOLD_MS=400,TRACKING_GRACE_MS=240,SWIPE_WINDOW_MS=850;
+// A deliberate swipe is about three quarters of the visitor's shoulder span,
+// bounded so a close visitor still has to travel and a far one still can.
+const swipeDistance=width=>width?Math.min(.18,Math.max(.10,width*.75)):.18;
 
 export function openPalm(landmarks){
   if(landmarks?.length!==21||landmarks.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return null;
@@ -26,6 +29,7 @@ export class AirSwipeDetector {
     this.armedUntil=0;this.progress=0;this.state='idle';this.previousSeen=-Infinity;
     this.reason='waiting';
     this.missingSince=null;
+    this.bodyWidth=null;this.lastPoint=null;this.lastDx=0;
   }
   update(result,time){
     if(!Number.isFinite(time)||time<=this.lastTime)return 0;
@@ -37,10 +41,12 @@ export class AirSwipeDetector {
     const selected=candidates.length===1?candidates[0]:null,point=selected?.point;
     const person=String(result?.personId??'body');
     const activeSide=this.identity?.split(':').at(-1);
-    const pose=result?.poseLandmarks,shoulder=pose?.[activeSide==='L'?12:11],wrist=pose?.[activeSide==='L'?16:15];
+    const pose=result?.poseLandmarks;
+    this.bodyWidth=shoulderWidth(pose)??this.bodyWidth;
+    this.lastPoint=point||null;this.lastDx=0;
     const personChanged=this.identity&&this.identity!==person+':'+activeSide;
     const cancelled=personChanged||candidates.length>1||observations.some(o=>o.side===activeSide&&!o.point)||
-      (activeSide&&visible(shoulder)&&visible(wrist)&&wrist.y>=shoulder.y+.04);
+      (activeSide&&handLowered(pose,activeSide));
     this.reason=selected?'eligible':candidates.length>1?'multiple-raised-palms':'no-raised-palm';
     if(!point){
       this.absentSince??=time;
@@ -93,7 +99,8 @@ export class AirSwipeDetector {
     const elapsed=time-start.time;
     const travel=this.history.slice(1).reduce((sum,p,i)=>sum+Math.abs(p.x-this.history[i].x),0);
     const ys=this.history.map(p=>p.y);
-    if(elapsed<120||Math.abs(dx)<.18||Math.abs(dx)<Math.abs(dy)*2||
+    this.lastDx=dx;
+    if(elapsed<120||Math.abs(dx)<swipeDistance(this.bodyWidth)||Math.abs(dx)<Math.abs(dy)*2||
        Math.max(...ys)-Math.min(...ys)>.14||Math.abs(dx)<travel*.8)return 0;
     this.history=[];this.latched=true;this.still={...point,time};this.cooldownUntil=time+1000;
     this.armedUntil=0;this.progress=0;this.state='cooldown';
@@ -111,6 +118,9 @@ export class AirSwipeTracker {
     this.ready=false;this.stopped=false;this.busy=false;this.frames=0;this.poseFrames=0;
     this.lastFrame=-Infinity;this.lastVideoTime=-1;
     this.handDiagnostics={status:'starting',lateFrames:0,lateCaptureFrames:0,missedFrames:0,unmatchedFrames:0,identityDrops:0};
+    // Rolling per-sample gesture record (~45s) so real swipe attempts can be
+    // replayed and diagnosed after the fact. Read via fleetQA.swipeTrace.
+    this.trace=[];
     try{
       this.worker=new Worker(new URL(this.nativeBody?'./finger-tracking-worker.js':'./hand-tracking-worker.js',import.meta.url));
       this.worker.onmessage=({data})=>{
@@ -147,6 +157,7 @@ export class AirSwipeTracker {
         if(detected&&!matched)d.unmatchedFrames++;
         this.lastAcceptedTime=data.time;this.lastResultTime=data.time;
         const direction=this.detector.update(data.result,data.time);
+        this.record(data.time,age,detected,matched,direction);
         this.onMotion(data.result,this.detector,data.time);
         if(direction)this.onSwipe(direction);
       };
@@ -170,6 +181,13 @@ export class AirSwipeTracker {
       try{this.worker.postMessage({type:'frame',frame,time,body:this.nativeBody?body:undefined},[frame]);}
       catch(error){frame.close();this.fail(error);}
     }).catch(error=>this.fail(error));
+  }
+  record(time,age,detected,matched,direction){
+    const g=this.detector,d=this.handDiagnostics,p=g.lastPoint;
+    this.trace.push({t:Math.round(time),ageMs:Math.round(age),inferenceMs:Math.round(d.inferenceMs||0),mode:d.mode,
+      detected,matched,hand:g.identity,palm:p?[+p.x.toFixed(3),+p.y.toFixed(3)]:null,state:g.state,reason:g.reason,
+      progress:+g.progress.toFixed(2),dx:+g.lastDx.toFixed(3),bodyWidth:g.bodyWidth&&+g.bodyWidth.toFixed(3),direction});
+    if(this.trace.length>1200)this.trace.splice(0,this.trace.length-1200);
   }
   fail(error){if(this.stopped)return;this.stop();this.onError(error);}
   stop(){

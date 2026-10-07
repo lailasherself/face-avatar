@@ -69,9 +69,9 @@
     </div>
     <video id="camera-preview" autoplay playsinline muted hidden></video>
     <dialog id="camera-framing" aria-labelledby="framing-title">
-      <div class="framing-heading"><h2 id="framing-title">Camera Framing</h2><button id="close-framing" class="icon small" title="Close camera framing" aria-label="Close camera framing"><img src="vendor/lucide/x.svg" alt=""></button></div>
+      <div class="framing-heading"><h2 id="framing-title">Camera Framing</h2><button id="save-trace" class="small" title="Download the last 45 seconds of air-swipe tracking as JSON">Save gesture trace</button><button id="close-framing" class="icon small" title="Close camera framing" aria-label="Close camera framing"><img src="vendor/lucide/x.svg" alt=""></button></div>
       <canvas aria-label="Full camera frame with arm tracking"></canvas>
-      <dl class="framing-readings"><div><dt>Capture</dt><dd data-capture>Camera off</dd></div><div><dt>Left arm</dt><dd data-arm="left">Not tracked</dd></div><div><dt>Right arm</dt><dd data-arm="right">Not tracked</dd></div></dl>
+      <dl class="framing-readings"><div><dt>Capture</dt><dd data-capture>Camera off</dd></div><div><dt>Left arm</dt><dd data-arm="left">Not tracked</dd></div><div><dt>Right arm</dt><dd data-arm="right">Not tracked</dd></div><div><dt>Hands</dt><dd data-hands>Not tracked</dd></div><div><dt>Air swipe</dt><dd data-gesture>Waiting</dd></div></dl>
     </dialog>
   </main>
   <script type="module" src="fleet.js"></script>

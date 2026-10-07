@@ -1,17 +1,28 @@
 const visible=p=>p&&[p.x,p.y].every(Number.isFinite)&&p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1&&
   (p.visibility??1)>=.6&&(p.presence??1)>=.6;
-export const HAND_TILE=320;
+export const HAND_TILE=320,TILE_SLACK=.08;
 
 export function handCrops(body,width,height){
   if(!Number.isFinite(width)||!Number.isFinite(height)||Math.min(width,height)<64)return [];
   const pose=body?.poseLandmarks||[],distance=(a,b)=>Math.hypot((a.x-b.x)*width,(a.y-b.y)*height);
   const shoulders=visible(pose[11])&&visible(pose[12])?distance(pose[11],pose[12]):0;
   const crops=[];
-  for(const [side,index,elbow,tile] of [['L',16,14,0],['R',15,13,1]]){
+  for(const [side,index,elbow,tile,knuckles] of [['L',16,14,0,[18,20,22]],['R',15,13,1,[17,19,21]]]){
     const wrist=pose[index];if(!visible(wrist))continue;
     const forearm=visible(pose[elbow])?distance(wrist,pose[elbow]):0;
-    const tip=body?.handHints?.[side],hint=visible(tip)?tip:null;
+    // Centre the crop on the hand, not the wrist. A seated visitor close to the
+    // webcam has an out-of-frame elbow and a hand longer than the shoulder-based
+    // crop, so the fingertips spilled past the top edge and the hand was rejected.
+    // The pose model's pinky/index/thumb knuckles locate the palm when no
+    // explicit hand hint (ZED) is available.
+    const seen=knuckles.map(i=>pose[i]).filter(visible);
+    const palm=seen.length?{x:seen.reduce((sum,p)=>sum+p.x,0)/seen.length,y:seen.reduce((sum,p)=>sum+p.y,0)/seen.length}:null;
+    // Fingertips reach about twice as far from the wrist as the knuckles do.
+    const poseHint=palm?{x:wrist.x+(palm.x-wrist.x)*2,y:wrist.y+(palm.y-wrist.y)*2}:null;
+    const tip=body?.handHints?.[side],hint=visible(tip)?tip:poseHint;
     // Include the fingertips beyond the wrist, including foreshortened reaches.
+    // Larger crops overlap on close-together hands and make the landmarker see
+    // the same hand twice, so edge tolerance lives in restoreHands instead.
     const size=Math.min(width,height,Math.max(80,shoulders*.8,forearm*1.6,hint?distance(wrist,hint)*3:0));
     const elbowPoint=visible(pose[elbow])?pose[elbow]:wrist;
     const cx=hint?(wrist.x+hint.x)*width/2:(wrist.x+(wrist.x-elbowPoint.x)*.25)*width;
@@ -28,7 +39,10 @@ export function restoreHands(result,crops){
     const points=result.landmarks[i];
     if(points.length!==21||points.some(p=>![p.x,p.y,p.z].every(Number.isFinite)))continue;
     const crop=crops.find(c=>Math.floor(points[0].x*2)===c.tile);
-    if(!crop||points.some(p=>p.x*2<crop.tile||p.x*2>crop.tile+1||p.y<0||p.y>1))continue;
+    // The landmarker extrapolates fingertips slightly past the image edge; keep
+    // those hands, but still drop one that genuinely spans into the other tile.
+    const slack=TILE_SLACK;
+    if(!crop||points.some(p=>p.x*2<crop.tile-slack||p.x*2>crop.tile+1+slack||p.y<-slack||p.y>1+slack))continue;
     const mapped=points.map(p=>({...p,x:(crop.x+(p.x*2-crop.tile)*crop.size)/crop.width,
       y:(crop.y+p.y*crop.size)/crop.height,z:p.z*2*crop.size/crop.width}));
     const error=Math.hypot(mapped[0].x-crop.wrist.x,mapped[0].y-crop.wrist.y);
