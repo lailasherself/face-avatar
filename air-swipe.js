@@ -1,7 +1,13 @@
 import {raisedPalmBodySide,handLowered,shoulderWidth,raisedSlack} from './body-motion.js';
 import {trackedFingerCurls} from './finger-motion.js';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const HOLD_MS=400,SWIPE_WINDOW_MS=850;
+const HOLD_MS=350,SWIPE_WINDOW_MS=850;
+// Without any body pose, an open palm in the lower band of the frame (hands
+// resting in a lap or on a desk) is not a gesture; anything above it is.
+const LOW_BAND_Y=.8;
+// Dropouts shorter than this do not pause the hold. One or two dropped hand
+// frames at 27 fps must not stretch a 350 ms hold into a second.
+const HOLD_GAP_PAUSE_MS=120;
 // A hand may vanish for this long and resume the same gesture. One dropped hand
 // frame on a slow kiosk (hand inference ~150 ms) is a 300 ms gap, so 240 ms was
 // cancelling real swipes mid-motion.
@@ -48,12 +54,28 @@ export class AirSwipeDetector {
     this.lastTime=time;
     // Count eligible gestures, not every detected hand. A resting second hand
     // must not cancel the visitor's deliberately raised palm.
-    const observations=(result?.landmarks||[]).map(hand=>({side:raisedPalmBodySide(hand,result.poseLandmarks),point:openPalm(hand)}));
-    const candidates=observations.filter(c=>c.side&&c.point);
     const person=String(result?.personId??'body');
     const activeSide=this.identity?.split(':').at(-1);
     const pose=result?.poseLandmarks;
     this.bodyWidth=shoulderWidth(pose)??this.bodyWidth;
+    // The body pose assigns a hand to a body side and rejects lowered hands, but
+    // it flickers far more than hand detection and fails on partial bodies. An
+    // open palm the pose cannot place is still a gesture unless it is below the
+    // last known shoulder line (or the frame's lower band when no shoulders
+    // were ever seen); such hands track as side 'free'.
+    const shoulders=[pose?.[11],pose?.[12]].filter(p=>p&&Number.isFinite(p.y)&&(p.visibility??1)>=.6&&(p.presence??1)>=.6);
+    const shoulderLimit=shoulders.length?Math.max(...shoulders.map(p=>p.y))+raisedSlack(pose):null;
+    const lowLimit=shoulderLimit??this.raisedLimit??LOW_BAND_Y;
+    // While a gesture is in progress, a pose-less palm far from the tracked hand
+    // is someone else's hand, not a teleport: ignore it rather than adopt it.
+    const reach=Math.max(.12,(this.bodyWidth||0)*.6)+Math.max(0,time-this.previousSeen)*.001;
+    const observations=(result?.landmarks||[]).map(hand=>{
+      const point=openPalm(hand);
+      let side=raisedPalmBodySide(hand,pose);
+      if(!side&&point&&point.y<lowLimit&&!(this.identity&&this.anchor&&distance(point,this.anchor)>=reach))side='free';
+      return {side,point};
+    });
+    const candidates=observations.filter(c=>c.side&&c.point);
     let selected=candidates.length===1?candidates[0]:null;
     this.sticky=false;
     if(!selected&&!candidates.length&&this.identity&&this.anchor&&time-this.previousSeen<=STICKY_MS){
@@ -70,7 +92,7 @@ export class AirSwipeDetector {
     this.lastPoint=point||null;this.lastDx=0;
     const personChanged=this.identity&&this.identity!==person+':'+activeSide;
     const releasing=candidates.length>1||observations.some(o=>o.side===activeSide&&!o.point)||
-      (!!activeSide&&handLowered(pose,activeSide));
+      ((activeSide==='L'||activeSide==='R')&&handLowered(pose,activeSide));
     this.releaseSince=releasing?(this.releaseSince??time):null;
     const cancelled=personChanged||(releasing&&time-this.releaseSince>=RELEASE_MS);
     this.reason=selected?'eligible':candidates.length>1?'multiple-raised-palms':'no-raised-palm';
@@ -85,21 +107,23 @@ export class AirSwipeDetector {
         this.reason='tracking-gap';return 0;
       }
       this.history=[];this.still=null;this.identity=null;
-      this.missingSince=null;this.anchor=null;this.raisedLimit=null;
+      this.missingSince=null;this.anchor=null;
       this.armedUntil=0;this.progress=0;this.state='idle';
       return 0;
     }
     this.absentSince=null;
     this.anchor=point;
-    if(!this.sticky){
-      const shoulder=pose?.[selected.side==='L'?12:11];
-      this.raisedLimit=shoulder&&Number.isFinite(shoulder.y)?shoulder.y+raisedSlack(pose):null;
-    }
-    const identity=person+':'+selected.side;
-    if(time-this.previousSeen>TRACKING_GRACE_MS||(this.identity&&this.identity!==identity)){
+    if(shoulderLimit!==null)this.raisedLimit=shoulderLimit;
+    // A hand the pose places on a body side and the same hand tracked as 'free'
+    // while the pose wrist flickers are one gesture, not an identity change.
+    let identity=person+':'+selected.side;
+    const continuing=this.identity&&time-this.previousSeen<=TRACKING_GRACE_MS&&(activeSide==='free'||selected.side==='free');
+    if(continuing&&selected.side==='free')identity=this.identity;
+    if(time-this.previousSeen>TRACKING_GRACE_MS||(this.identity&&this.identity!==identity&&!continuing)){
       this.history=[];this.still=null;this.armedUntil=0;
     }else if(this.missingSince!==null&&this.still&&!this.armedUntil){
-      this.still.time+=time-this.missingSince;
+      const gap=time-this.missingSince;
+      if(gap>HOLD_GAP_PAUSE_MS)this.still.time+=gap;
     }
     this.missingSince=null;
     this.previousSeen=time;
