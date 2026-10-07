@@ -1,5 +1,5 @@
 export class FaceTracker {
-  constructor(){
+  constructor({maxFaces=1}={}){
     this.busy=false;this.stopped=false;this.initialized=false;this.latest=null;this.lastVideoTime=-1;this.lastCaptureTime=-Infinity;
     this.frames=0;this.latencyMs=0;this.error=null;
     this.discardBefore=-Infinity;
@@ -18,7 +18,7 @@ export class FaceTracker {
       };
       this.worker.onerror=e=>{e.preventDefault();this.fail(new Error(e.message||'Face worker failed'));};
       this.watchdog=setTimeout(()=>this.fail(new Error('Face tracker startup timed out')),30000);
-      this.worker.postMessage({type:'init'});
+      this.worker.postMessage({type:'init',maxFaces});
     }catch(error){this.fail(error);}
   }
   detectForVideo(video,time){
