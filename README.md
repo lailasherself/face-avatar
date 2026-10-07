@@ -78,11 +78,23 @@ renders; `scripts/paint_reference_surfaces.py` contains the staged Blender workf
 Coral is temporarily paused in all website rosters and excluded from the published
 bundle; its models, textures and Blender sources remain saved for further work.
 Left/right arrows change characters.
-The selected alien is centered and live. The other six are visible, stationary
-behind it; a deliberate air swipe selects and immediately drives the next alien.
+The installation shows one large, live alien from the waist up, for a TV behind
+the physical UFO vinyl. Framing and a waist clipping plane conceal the legs.
+The reference TV image area is 47.62 by 26.79 inches (approximately 16:9).
+The display tabs switch between **TV close-up**, **Spaceship** (zoomed to the UFO),
+and **Full vinyl** (the entire window artwork), retaining the live camera and
+selected alien. Tab arrow keys move between views; arrows outside the tabs still
+change characters. `?view=ship` opens the close preview and `?view=vinyl` opens the
+full print; older `?vinyl` links still work. Operator mode keeps its inspection UI.
+The preview shows the original first artwork at
+https://23d.com/ufo-vinyl/update1.html. That preview uses the original
+`ufo1.jpg`, stored as `assets/references/ufo1-vinyl.jpg`; it is a visual mockup,
+not a calibrated physical alignment of the TV and vinyl.
+A deliberate air swipe selects and immediately drives the next alien.
 There is no separate two-hand confirmation or mode that disables switching.
-Characters preload after camera startup and are reused on selection. Background
-figures are neutral 3D snapshots with a cached render, not additional tracked rigs.
+Characters preload after camera startup and are reused on selection. Inactive
+characters are hidden in the installation. Operator mode retains the full-body
+inspection view and its neutral background previews.
 Only the selected character runs facial, arm, finger and collision updates.
 The vehicle is not loaded; its original files are preserved. The authoritative
 roster is `assets/3dai/manifest.json`; it selects the current GLBs without merging
@@ -115,7 +127,8 @@ Body and hand tracking start automatically with face tracking in `cockpit.html`.
 The alien's upper arms, elbows, and hands mirror the visitor's movement. Both arms
 work independently, including with closed fists. Keep shoulders, elbows, and wrists
 visible to the camera. Uncertain or lost arm tracking eases back to a collision-safe
-neutral pose. The default pose is standing. Available fingers curl/point
+neutral pose. The underlying rig stays standing, with its lower body concealed by
+the screen edge and physical saucer vinyl to read as seated. Available fingers curl/point
 independently according to each alien's native anatomy; Clay and Coral have flippers rather
 than separate fingers. The lower-body pose controls only affect rigs with clips.
 
@@ -146,8 +159,9 @@ No camera images are uploaded. `body-motion.js` maps the observed limb direction
 Tests: `node --test scripts/test_air_swipe.mjs scripts/test_arm_collisions.mjs`. Real-camera sensitivity and
 GEEKOM/Orin performance still need on-site verification.
 
-`node scripts/test_fleet_stage_browser.cjs` checks active-roster visibility, stationary
-backgrounds, cached switching, one active rig and landscape/portrait rendering.
+`node scripts/test_fleet_stage_browser.cjs` checks single-alien visibility, concealed
+legs, cached switching, keyboard/touch swipes and TV/mobile rendering. Set
+`INSTALLATION_URL` to use a local server on a port other than 8014.
 `node scripts/test_mode_gestures_browser.cjs` replays the real hand model to verify
 two palms cannot lock switching and only an armed swipe changes the live character.
 These browser tests require Playwright, Chrome and the local installation server;

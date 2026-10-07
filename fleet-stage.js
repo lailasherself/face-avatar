@@ -31,8 +31,11 @@ export function freezeCharacter(root) {
 }
 
 export class FleetStage {
-  constructor(scene,camera){
+  constructor(scene,camera,{solo=false}={}){
+    this.solo=solo;
     this.scene=scene;this.camera=camera;this.entries=new Map();this.selected=-1;this.count=0;
+    this.backdropFrames=0;
+    if(solo)return;
     this.backdrop=new THREE.Scene();
     this.backdrop.environment=scene.environment;
     for(const child of scene.children)if(child.isLight)this.backdrop.add(child.clone());
@@ -47,19 +50,20 @@ export class FleetStage {
     this.dirty=true;this.backdropFrames=0;
   }
   add(index,rig){
-    const preview=freezeCharacter(rig);
-    const bounds=new THREE.Box3().setFromObject(preview);
+    const preview=this.solo?new THREE.Group():freezeCharacter(rig);
+    const bounds=new THREE.Box3().setFromObject(this.solo?rig:preview);
     const entry={rig,preview,bounds,target:new THREE.Vector3(),scale:1};
-    this.entries.set(index,entry);this.scene.add(rig);this.backdrop.add(preview);
-    rig.visible=index===this.selected;preview.visible=!rig.visible;
+    this.entries.set(index,entry);this.scene.add(rig);this.backdrop?.add(preview);
+    rig.visible=index===this.selected;preview.visible=!this.solo&&!rig.visible;
     this.layout(true);
   }
   select(index,count){
     this.selected=index;this.count=count;
-    for(const [i,e] of this.entries){e.rig.visible=i===index;e.preview.visible=i!==index;}
+    for(const [i,e] of this.entries){e.rig.visible=i===index;e.preview.visible=!this.solo&&i!==index;}
     this.layout(true);
   }
   layout(snap=false){
+    if(this.solo)return;
     this.dirty=true;
     const {camera,count,selected}=this;if(count<2)return;
     camera.updateMatrixWorld();
@@ -81,6 +85,7 @@ export class FleetStage {
     }
   }
   renderBackdrop(renderer){
+    if(this.solo)return;
     const size=renderer.getDrawingBufferSize(new THREE.Vector2());
     if(this.target.width!==size.x||this.target.height!==size.y){this.target.setSize(size.x,size.y);this.dirty=true;}
     if(!this.dirty)return;

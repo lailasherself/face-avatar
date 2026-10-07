@@ -7,6 +7,14 @@
 .installation #app{height:100vh;min-height:0}
 .installation header,.installation .character-info,.installation #expression-panel,.installation .view-tools,.installation footer,.installation #camera-preview{display:none!important}
 .installation #notice{bottom:25px}
+#scene-tabs{position:absolute;z-index:2;top:16px;left:50%;transform:translateX(-50%);display:flex;max-width:calc(100% - 24px);border-bottom:1px solid #8baba755;background:#071b20ed}
+#scene-tabs[hidden]{display:none}
+#scene-tabs button{flex:1 0 auto;min-height:44px;padding:10px 18px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#c5d5d5;font-size:13px;white-space:nowrap}
+#scene-tabs button:hover{background:#214347;color:#fff}
+#scene-tabs button[aria-selected=true]{border-bottom-color:#d2f38c;color:#eaffbf}
+#scene-tabs button:focus-visible{outline:2px solid #d2f38c;outline-offset:-4px}
+.installation #swap-cue{top:72px}
+@media(max-width:480px){#scene-tabs{top:10px}#scene-tabs button{padding:10px 12px;font-size:12px}}
 #camera-retry{position:absolute;left:50%;bottom:100px;transform:translateX(-50%)}
 #camera-retry[hidden]{display:none}
 #swap-cue{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:104px;height:52px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;color:#57675e}
