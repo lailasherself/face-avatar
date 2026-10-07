@@ -19,7 +19,12 @@
 </head>
 <body>
   <main id="app">
-    <div id="stage" aria-label="Interactive 3D avatar"><canvas id="scene"></canvas></div>
+    <div id="stage" role="tabpanel" aria-labelledby="view-tv"><canvas id="scene" aria-label="Interactive 3D avatar"></canvas></div>
+    <div id="scene-tabs" role="tablist" aria-label="Display view" hidden>
+      <button id="view-tv" type="button" role="tab" aria-controls="stage" aria-selected="true" data-view="tv">TV close-up</button>
+      <button id="view-ship" type="button" role="tab" aria-controls="stage" aria-selected="false" tabindex="-1" data-view="ship">Spaceship</button>
+      <button id="view-vinyl" type="button" role="tab" aria-controls="stage" aria-selected="false" tabindex="-1" data-view="vinyl">Full vinyl</button>
+    </div>
     <header>
       <a class="brand" href="index.html"><span class="brand-mark">fa</span><span>FACE AVATAR<span class="brand-sub">CHARACTER STUDIO</span></span></a>
       <div class="header-right"><span class="status" id="tracking-status" role="status">Camera off</span><button id="camera-framing-toggle" class="icon" title="Camera framing" aria-label="Camera framing"><img src="vendor/lucide/maximize.svg" alt=""></button><button id="camera-toggle" class="primary"><img src="vendor/lucide/video.svg" alt="">Start camera</button></div>

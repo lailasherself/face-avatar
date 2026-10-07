@@ -26,7 +26,7 @@ export function validateAssetHeader(path, header) {
 }
 
 export function previewFiles(source = root) {
-  const files = new Set(['cockpit.html', ...manifests]);
+  const files = new Set(['cockpit.html', 'assets/references/ufo1-vinyl.jpg', ...manifests]);
   for (const entry of readdirSync(source, {withFileTypes: true})) {
     if (entry.isFile() && /\.(js|css)$/.test(entry.name)) files.add(entry.name);
   }

@@ -18,17 +18,19 @@ import { resolveMouth, oralWeight } from './mouth-signals.js';
 import { attachSmileBite } from './smile-rig.js';
 import { ZedSource } from './zed-source.js';
 import { CameraFraming, cameraConstraints } from './camera-framing.js';
+import { VinylPreview } from './vinyl-preview.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, lo=0, hi=1) => Math.min(hi, Math.max(lo, v));
 const params=new URLSearchParams(location.search);
 const setupMode=params.has('setup');
+let displayView=!setupMode&&['tv','ship','vinyl'].includes(params.get('view'))?params.get('view'):!setupMode&&params.has('vinyl')?'vinyl':'tv';
 const zedMode=params.get('tracking')==='zed';
 const framing=new CameraFraming($('camera-preview'),$('camera-framing'),zedMode ? .6 : .8);
 const eyeSignals=new EyeSignalFilter();
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#edf1ee');
-scene.fog = new THREE.Fog('#edf1ee',9,24);
+scene.background = new THREE.Color(setupMode?'#edf1ee':'#071b20');
+scene.fog = setupMode?new THREE.Fog('#edf1ee',9,24):null;
 const renderer = new THREE.WebGLRenderer({canvas:$('scene'),antialias:true,preserveDrawingBuffer:true});
 renderer.setPixelRatio(setupMode?Math.min(devicePixelRatio,2):1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -36,6 +38,8 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
 renderer.shadowMap.enabled = setupMode;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled=!setupMode;
+const waistClip=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const room = new RoomEnvironment();
 const environment = pmrem.fromScene(room,.04);
@@ -60,9 +64,11 @@ scene.add(key);
 const fill=new THREE.DirectionalLight(0xd9edff,1.6);fill.position.set(4,3,-3);scene.add(fill);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xedf1ee,roughness:.95}));
 floor.rotation.x=-Math.PI/2;floor.position.y=.02;floor.receiveShadow=true;scene.add(floor);
+floor.visible=setupMode;
+let vinyl=displayView!=='tv'?new VinylPreview():null;
 
 const loader = new GLTFLoader();
-const fleetStage=new FleetStage(scene,camera);
+const fleetStage=new FleetStage(scene,camera,{solo:!setupMode});
 renderer.domElement.addEventListener('webglcontextrestored',()=>fleetStage.layout(true));
 const characterLoads=new Map();
 let manifest, current, currentIndex=0, requestId=0, bodyPose='Standing';
@@ -89,6 +95,20 @@ function resetView(){
   const size=bounds?.getSize(new THREE.Vector3())||new THREE.Vector3(3,3.7,1);
   const center=bounds?.getCenter(new THREE.Vector3())||new THREE.Vector3(0,ty,0);
   const tangent=Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+  if(!setupMode){
+    const spine=current?.gltf.scene.getObjectByName('Spine');
+    const waist=spine?.getWorldPosition(new THREE.Vector3()).y??((bounds?.min.y||0)+size.y*.46);
+    const upperHeight=(bounds?.max.y??3.7)-waist;
+    const front=bounds?.max.z||0,back=bounds?.min.z||0;
+    // Keep the waist below the TV's bottom edge, even on deep or narrow rigs.
+    const d=Math.max((upperHeight/tangent+.84*front+1.03*back)/1.87,
+      size.x/(2*tangent*camera.aspect*.9)+front);
+    controls.target.set(center.x,waist+1.03*(d-back)*tangent,0);
+    camera.position.set(center.x,controls.target.y,d);
+    camera.zoom=1;camera.updateProjectionMatrix();controls.update();
+    waistClip.constant=-waist;
+    return;
+  }
   const portrait=camera.aspect<1;
   const fit=Math.max(size.y/(2*tangent*(portrait?.53:.62)),(size.x+.6)/(2*tangent*camera.aspect*.88));
   const d=setupMode?8.3:fit+Math.max(0,bounds?.max.z||0);
@@ -100,14 +120,42 @@ function resetView(){
 }
 function resize(){
   const {width,height}=$('stage').getBoundingClientRect();
-  renderer.setSize(width,height,false);camera.aspect=width/height;
+  renderer.setSize(width,height,false);camera.aspect=displayView!=='tv'?16/9:width/height;
   camera.fov=36;
-  camera.setViewOffset(width,height,0,setupMode?height*.07:0,width,height);
+  if(setupMode)camera.setViewOffset(width,height,0,height*.07,width,height);
+  else camera.clearViewOffset();
   camera.updateProjectionMatrix();
   resetView();
 }
 new ResizeObserver(resize).observe($('stage'));
 resetView();
+
+function setDisplayView(view,updateURL=true){
+  displayView=view;
+  if(view!=='tv'&&!vinyl)vinyl=new VinylPreview();
+  for(const tab of $('scene-tabs').querySelectorAll('[role=tab]')){
+    const selected=tab.dataset.view===view;
+    tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;
+  }
+  $('stage').setAttribute('aria-labelledby',`view-${view}`);
+  if(updateURL){
+    const url=new URL(location);url.searchParams.delete('vinyl');url.searchParams.set('view',view);
+    history.replaceState(null,'',url);
+  }
+  resize();
+}
+$('scene-tabs').hidden=setupMode;
+$('scene-tabs').addEventListener('click',event=>{
+  const tab=event.target.closest('[role=tab]');if(tab)setDisplayView(tab.dataset.view);
+});
+$('scene-tabs').addEventListener('keydown',event=>{
+  const tabs=[...$('scene-tabs').querySelectorAll('[role=tab]')],index=tabs.indexOf(document.activeElement);
+  if(index<0||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();event.stopPropagation();
+  const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+  setDisplayView(tabs[next].dataset.view);tabs[next].focus();
+});
+setDisplayView(displayView,false);
 
 function setPose(name){
   bodyPose=name;
@@ -136,6 +184,7 @@ function loadCharacter(index){
       if(o.isMesh){
         o.castShadow=true;o.receiveShadow=true;
         if(o.isSkinnedMesh)o.frustumCulled=false;
+        if(!setupMode)for(const material of Array.isArray(o.material)?o.material:[o.material])material.clippingPlanes=[waistClip];
         if(o.morphTargetDictionary){o.morphTargetInfluences.fill(0);meshes.push(o);}
         let owner=o;while(owner&&!owner.userData.eyelidSurfaces)owner=owner.parent;
         if(owner)attachEyelidSurface(o,owner.userData.eyelidSurfaces);
@@ -448,7 +497,8 @@ renderer.setAnimationLoop(time=>{
   if(!handTracker?.ready||time-handTracker.lastResultTime>400)$('swap-cue').hidden=true;
   driveFace(dt,time);current?.collisions.update(dt);current?.correctives.update(bodyPose);controls.update();
   if(setupMode)fleetStage.layout(true);
-  fleetStage.renderBackdrop(renderer);renderer.render(scene,camera);
+  fleetStage.renderBackdrop(renderer);
+  if(displayView!=='tv')vinyl.render(renderer,scene,camera,displayView==='ship');else renderer.render(scene,camera);
 });
 
 try{
@@ -478,7 +528,7 @@ try{
 
 // Read-only diagnostics for automated export/render checks, enabled explicitly.
 if(new URLSearchParams(location.search).has('qa'))Object.defineProperty(window,'fleetQA',{get:()=>({
-  character:current?.info.id,vehicleUUID:null,vehicleVisible:false,pose:bodyPose,
+  character:current?.info.id,vehicleUUID:null,vehicleVisible:false,pose:bodyPose,displayView,vinylReady:vinyl?.ready??false,
   armCollisionAdjustments:current?.collisions.adjustments,armPenetration:current?.collisions.penetration,armCollisionMs:current?.collisions.durationMs,
   animations:current?.gltf.animations.map(a=>a.name),
   morphs:current?.meshes.map(m=>({names:Object.keys(m.morphTargetDictionary),weights:[...m.morphTargetInfluences]})),
