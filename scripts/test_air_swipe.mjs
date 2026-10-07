@@ -111,8 +111,32 @@ test('two raised palms, hands below shoulders and unmatched hands cannot arm',()
 });
 test('lowering hand cancels readiness; reacquiring requires a new hold',()=>{
   const d=new AirSwipeDetector();hold(d);
-  d.update(motionFrame({closed:true}),800);assert.equal(d.state,'idle');
-  assert(sweep(d,{time:880}).every(v=>v===0));
+  // A closed palm has to persist; a single blurred frame is not a release.
+  d.update(motionFrame({closed:true}),800);assert.equal(d.state,'armed');
+  d.update(motionFrame({closed:true}),1000);assert.equal(d.state,'idle');
+  assert(sweep(d,{time:1080}).every(v=>v===0));
+});
+test('a palm blurred closed for one frame mid-swipe still completes the swipe',()=>{
+  for(const [start,dx,wanted] of [[.3,.32,1],[.7,-.32,-1]]){
+    const d=new AirSwipeDetector();hold(d,start);
+    const events=[];
+    for(let i=0;i<5;i++)events.push(d.update(motionFrame({x:start+dx*i/4,closed:i===2}),800+i*80));
+    assert.deepEqual(events.filter(Boolean),[wanted]);
+  }
+});
+test('the tracked palm survives body-pose dropout by position but a new gesture still needs the pose',()=>{
+  const d=new AirSwipeDetector();hold(d);
+  // Pose vanishes for the whole swipe; the open palm keeps moving where the hand was.
+  const events=Array.from({length:5},(_,i)=>d.update(motionFrame({x:.3+.32*i/4,noPose:true}),800+i*80));
+  assert.deepEqual(events.filter(Boolean),[1]);
+  // A different hand far from the tracked one is not adopted.
+  const other=new AirSwipeDetector();hold(other);
+  other.update(motionFrame({x:.85,noPose:true}),880);
+  assert.notEqual(other.reason,'eligible');
+  // And without a prior pose match, a pose-less palm never starts a hold.
+  const fresh=new AirSwipeDetector();
+  for(let time=0;time<=1200;time+=80)fresh.update(motionFrame({noPose:true}),time);
+  assert.equal(fresh.state,'idle');
 });
 test('recoil and continued hold cannot cause repeated swaps; release rearms',()=>{
   const d=new AirSwipeDetector();hold(d);sweep(d);
@@ -129,7 +153,7 @@ test('readiness expires and tracking gaps or identity changes cancel it',()=>{
   for(const gap of [true,false]){
     const d=new AirSwipeDetector();hold(d);
     const frame=motionFrame(gap?{}:{wrist:15});
-    d.update(frame,gap?1100:800);assert.notEqual(d.state,'armed');
+    d.update(frame,gap?1300:800);assert.notEqual(d.state,'armed');
   }
 });
 test('reset and out-of-order timestamps cannot trigger a stale swipe',()=>{
@@ -167,7 +191,7 @@ test('reacquisition permits real travel during a short gap but rejects a telepor
 test('long tracking loss, another person, two palms and deliberate lowering cancel readiness',()=>{
   for(const frame of [{landmarks:[]},motionFrame({both:true}),motionFrame({y:.65}),{...motionFrame(),personId:42}]){
     const d=new AirSwipeDetector();hold(d);
-    d.update(frame,800);d.update(frame,1040);
+    d.update(frame,800);d.update(frame,1300);
     assert.notEqual(d.state,'armed');
   }
 });
@@ -210,5 +234,5 @@ test('swipe length and raised-palm slack scale with the visitor\'s size in frame
   // Lowering the active hand past the body-relative slack cancels readiness.
   const cancel=new AirSwipeDetector();hold(cancel);
   const dropped=motionFrame();dropped.poseLandmarks[16].y=.75;dropped.landmarks=[];
-  cancel.update(dropped,800);assert.equal(cancel.state,'idle');
+  cancel.update(dropped,800);cancel.update(dropped,1000);assert.equal(cancel.state,'idle');
 });

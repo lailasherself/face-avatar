@@ -37,7 +37,7 @@
 .framing-heading h2{font-size:16px}
 #camera-framing canvas{display:block;width:100%;height:auto;max-height:65dvh;object-fit:contain;background:#101413;transform:scaleX(-1)}
 .framing-heading h2{margin-right:auto}
-#save-trace{white-space:nowrap;padding:6px 10px;font-size:12px;border:1px solid #bacbbd;border-radius:4px;background:#fff;color:#23322e;cursor:pointer}
+#save-trace{width:auto;height:auto;min-width:0;margin-right:10px;white-space:nowrap;padding:6px 10px;font-size:12px;border:1px solid #bacbbd;border-radius:4px;background:#fff;color:#23322e;cursor:pointer}
 .framing-readings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0 0;font-size:12px}
 .framing-readings dt{color:#64736a;margin-bottom:5px}.framing-readings dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .framing-readings [data-state=near-edge],.framing-readings [data-state=outside-frame]{color:#925211}

@@ -47,7 +47,7 @@ export const shoulderWidth=pose=>{
 // How far below the shoulder line a palm may sit and still count as raised.
 // A natural "stop" palm (elbow bent, forearm vertical) keeps the wrist near the
 // shoulder, so allow about half a shoulder span of slack rather than a fixed 4%.
-export const raisedSlack=pose=>Math.max(.04,(shoulderWidth(pose)||0)*.6);
+export const raisedSlack=pose=>Math.max(.06,(shoulderWidth(pose)||0)*.6);
 export const handLowered=(pose,side)=>{
   const shoulder=pose?.[side==='L'?12:11],wrist=pose?.[side==='L'?16:15];
   return visible(shoulder)&&visible(wrist)&&wrist.y>=shoulder.y+raisedSlack(pose);
