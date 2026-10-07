@@ -38,10 +38,9 @@ export class SpaceshipPhoto {
     const style=document.createElement('link');style.rel='stylesheet';style.href=new URL('./spaceship-photo.css',import.meta.url).href;document.head.append(style);
     this.element=document.createElement('aside');this.element.id='spaceship-photo';this.element.hidden=true;
     this.element.setAttribute('aria-label','Take your alien photo');
-    this.element.innerHTML='<strong>Your alien photo</strong><a target="_blank" rel="noopener" aria-label="Open phone photo controls" hidden><img alt="Scan to take your alien photo"></a><p role="status">Photo station offline</p><small hidden>Same Wi-Fi as this screen</small>';
+    this.element.innerHTML='<a target="_blank" rel="noopener" aria-label="Scan QR code or open phone photo controls" hidden><img alt=""></a><p role="status">Photo station offline</p>';
     document.getElementById('app').append(this.element);
-    this.link=this.element.querySelector('a');this.status=this.element.querySelector('p');this.hint=this.element.querySelector('small');
-    if(config.network==='public')this.hint.textContent='Take it home on your phone';
+    this.link=this.element.querySelector('a');this.status=this.element.querySelector('p');
     if(config.enabled&&config.phoneURL)void this.makeCode();
     if(config.enabled&&config.mode==='cloud'&&!config.operator)void this.poll();
   }
@@ -67,8 +66,8 @@ export class SpaceshipPhoto {
   setView(view){this.element.hidden=view!=='ship';}
   update({online=false,ready=false,busy=false}={}){
     this.lastState={online,ready,busy};
-    // The public QR is permanent; camera availability must not hide its entry point.
-    this.link.hidden=!this.codeReady||(!online&&this.config.network!=='public');this.hint.hidden=this.link.hidden;
+    // Camera availability must not hide the public QR's entry point.
+    this.link.hidden=!this.codeReady||(!online&&this.config.network!=='public');
     this.status.textContent=!this.config.enabled||!online?'Photo station offline':!this.config.phoneURL?'Phone connection not configured':this.config.demo?'Scan for a sample photo':busy?'Photo in progress':ready?'Scan. Pose. Save.':'Scan, then face the camera';
   }
 }

@@ -43,6 +43,10 @@ const path=require('node:path');
       assert.equal(await qr.getAttribute('href'),phoneURL,'Reload keeps the same QR');
     }else assert.equal(phoneURL,'https://face-avatar.vercel.app/photo.html?station=atl-downtown');
     assert.equal(await qr.locator('img').evaluate(img=>img.naturalWidth>100),true);
+    assert.equal(await page.locator('#spaceship-photo strong, #spaceship-photo small').count(),0,'No heading or caption');
+    assert.equal(await qr.locator('img').getAttribute('alt'),'','Link supplies the accessible label without fallback copy');
+    assert.match(await qr.getAttribute('aria-label'),/QR code/);
+    assert.equal(await page.locator('#spaceship-photo p').evaluate(el=>getComputedStyle(el).clipPath),'inset(50%)','Status is screen-reader-only');
     if(!live){
       for(const state of [{online:false},{online:true,ready:true},{online:true,busy:true}]){
         await page.evaluate(state=>panel.update(state),state);assert.equal(await qr.isVisible(),true);
@@ -63,6 +67,8 @@ const path=require('node:path');
       await page.setViewportSize({width,height:900});await page.waitForTimeout(300);
       const box=await page.locator('#spaceship-photo').boundingBox();
       assert.ok(box.x>=0&&box.y>=0&&box.x+box.width<=width&&box.y+box.height<=900);
+      const codeBox=await qr.boundingBox();
+      assert.ok(Math.abs(box.width-codeBox.width)<1&&Math.abs(box.height-codeBox.height)<1,'Only the square QR occupies space');
       await page.screenshot({path:path.join(output,`${live?'live':'component'}-${width}.png`)});
     }
     if(live){
