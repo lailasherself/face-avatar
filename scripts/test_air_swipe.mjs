@@ -102,8 +102,8 @@ test('stationary noise, short, slow, diagonal and closed-palm motion do not swap
     assert(sweep(d,options).every(v=>v===0),JSON.stringify(options));
   }
 });
-test('two raised palms, hands below shoulders and unmatched hands cannot arm',()=>{
-  for(const options of [{both:true},{y:.65},{noPose:true},{unmatched:true}]){
+test('two raised palms, hands below shoulders and low pose-less hands cannot arm',()=>{
+  for(const options of [{both:true},{y:.65},{noPose:true,y:.9},{unmatched:true,y:.7}]){
     const d=new AirSwipeDetector();
     for(let time=0;time<1200;time+=80)d.update(motionFrame(options),time);
     assert.notEqual(d.state,'armed');
@@ -133,10 +133,22 @@ test('the tracked palm survives body-pose dropout by position but a new gesture 
   const other=new AirSwipeDetector();hold(other);
   other.update(motionFrame({x:.85,noPose:true}),880);
   assert.notEqual(other.reason,'eligible');
-  // And without a prior pose match, a pose-less palm never starts a hold.
-  const fresh=new AirSwipeDetector();
-  for(let time=0;time<=1200;time+=80)fresh.update(motionFrame({noPose:true}),time);
-  assert.equal(fresh.state,'idle');
+});
+test('an open palm works without any body pose, and pose flicker does not restart the hold',()=>{
+  // No pose at all (partial body, seated at a laptop): the palm still arms and swipes.
+  const free=new AirSwipeDetector();
+  for(let time=0;time<=400;time+=80)free.update(motionFrame({noPose:true}),time);
+  assert.equal(free.state,'armed');
+  assert.deepEqual(sweep(free,{time:480}).filter(Boolean),[1]);
+  // The pose wrist appearing and vanishing every other frame is one gesture.
+  const flicker=new AirSwipeDetector();
+  for(let time=0;time<=400;time+=80)flicker.update(motionFrame({unmatched:time%160===0}),time);
+  assert.equal(flicker.state,'armed');
+  assert.deepEqual(Array.from({length:5},(_,i)=>flicker.update(motionFrame({x:.3+.08*i,unmatched:i%2===1}),480+i*80)).filter(Boolean),[1]);
+  // A visible shoulder line still rejects a pose-less palm held low.
+  const low=new AirSwipeDetector();
+  for(let time=0;time<=800;time+=80)low.update(motionFrame({unmatched:true,y:.7}),time);
+  assert.equal(low.state,'idle');
 });
 test('recoil and continued hold cannot cause repeated swaps; release rearms',()=>{
   const d=new AirSwipeDetector();hold(d);sweep(d);
