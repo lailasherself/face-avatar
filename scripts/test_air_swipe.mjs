@@ -136,6 +136,52 @@ test('reset and out-of-order timestamps cannot trigger a stale swipe',()=>{
   const d=new AirSwipeDetector();hold(d);d.reset();
   assert(sweep(d).every(v=>v===0));assert.equal(d.update(motionFrame({x:.9}),700),0);
 });
+test('a deliberate hold arms in 400ms and tolerates small hand tremor',()=>{
+  const d=new AirSwipeDetector();
+  for(let time=0;time<=400;time+=80)d.update(motionFrame({x:time%160?.35:.3}),time);
+  assert.equal(d.state,'armed');
+});
+test('one missed hand or body detection preserves a swipe in either direction',()=>{
+  for(const missing of [{landmarks:[]},motionFrame({noPose:true})])for(const [start,dx,wanted] of [[.3,.32,1],[.7,-.32,-1]]){
+    const d=new AirSwipeDetector();hold(d,start);
+    const events=[];
+    for(let i=0;i<5;i++)events.push(d.update(i===1?missing:motionFrame({x:start+dx*i/4}),800+i*80));
+    assert.deepEqual(events.filter(Boolean),[wanted]);
+  }
+});
+test('missing detections do not count toward completing the hold',()=>{
+  const d=new AirSwipeDetector();
+  for(const time of [0,80,160])d.update(motionFrame(),time);
+  d.update({landmarks:[]},240);
+  for(const time of [320,400,480])d.update(motionFrame(),time);
+  assert.equal(d.state,'holding');
+  d.update(motionFrame(),560);assert.equal(d.state,'armed');
+});
+test('reacquisition permits real travel during a short gap but rejects a teleport',()=>{
+  for(const [end,wanted] of [[.6,1],[.9,0]]){
+    const d=new AirSwipeDetector();hold(d);
+    d.update(motionFrame(),800);d.update({landmarks:[]},880);
+    assert.equal(d.update(motionFrame({x:end}),960),wanted);
+  }
+});
+test('long tracking loss, another person, two palms and deliberate lowering cancel readiness',()=>{
+  for(const frame of [{landmarks:[]},motionFrame({both:true}),motionFrame({y:.65}),{...motionFrame(),personId:42}]){
+    const d=new AirSwipeDetector();hold(d);
+    d.update(frame,800);d.update(frame,1040);
+    assert.notEqual(d.state,'armed');
+  }
+});
+test('an empty frame cannot preserve readiness after its deadline',()=>{
+  const d=new AirSwipeDetector();hold(d);
+  for(let time=800;time<=2320;time+=80)d.update(motionFrame(),time);
+  d.update({landmarks:[]},2480);assert.notEqual(d.state,'armed');
+});
+test('a shorter or gently angled deliberate swipe works without allowing a short flick',()=>{
+  for(const [dx,dy,wanted] of [[.19,0,1],[.24,.11,1],[.12,0,0]]){
+    const d=new AirSwipeDetector();hold(d);
+    assert.equal(sweep(d,{dx,dy}).filter(Boolean).length,wanted);
+  }
+});
 test('arm directions mirror both sides, keep upper/lower independent, and reject occlusion',()=>{
   const frame=bodyPose(['right']);
   const arms=armDirections(frame.poseLandmarks,frame.poseWorldLandmarks);

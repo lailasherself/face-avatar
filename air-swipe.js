@@ -1,6 +1,7 @@
-import {raisedPalmBodySide} from './body-motion.js';
+import {raisedPalmBodySide,visible} from './body-motion.js';
 import {trackedFingerCurls} from './finger-motion.js';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const HOLD_MS=400,TRACKING_GRACE_MS=240,SWIPE_WINDOW_MS=850;
 
 export function openPalm(landmarks){
   if(landmarks?.length!==21||landmarks.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return null;
@@ -24,28 +25,46 @@ export class AirSwipeDetector {
     this.latched=false;this.absentSince=null;this.still=null;this.identity=null;
     this.armedUntil=0;this.progress=0;this.state='idle';this.previousSeen=-Infinity;
     this.reason='waiting';
+    this.missingSince=null;
   }
   update(result,time){
     if(!Number.isFinite(time)||time<=this.lastTime)return 0;
     this.lastTime=time;
     // Count eligible gestures, not every detected hand. A resting second hand
     // must not cancel the visitor's deliberately raised palm.
-    const candidates=(result?.landmarks||[]).map(hand=>({side:raisedPalmBodySide(hand,result.poseLandmarks),point:openPalm(hand)}))
-      .filter(c=>c.side&&c.point);
+    const observations=(result?.landmarks||[]).map(hand=>({side:raisedPalmBodySide(hand,result.poseLandmarks),point:openPalm(hand)}));
+    const candidates=observations.filter(c=>c.side&&c.point);
     const selected=candidates.length===1?candidates[0]:null,point=selected?.point;
+    const person=String(result?.personId??'body');
+    const activeSide=this.identity?.split(':').at(-1);
+    const pose=result?.poseLandmarks,shoulder=pose?.[activeSide==='L'?12:11],wrist=pose?.[activeSide==='L'?16:15];
+    const personChanged=this.identity&&this.identity!==person+':'+activeSide;
+    const cancelled=personChanged||candidates.length>1||observations.some(o=>o.side===activeSide&&!o.point)||
+      (activeSide&&visible(shoulder)&&visible(wrist)&&wrist.y>=shoulder.y+.04);
     this.reason=selected?'eligible':candidates.length>1?'multiple-raised-palms':'no-raised-palm';
     if(!point){
-      this.history=[];this.still=null;this.identity=null;
-      this.armedUntil=0;this.progress=0;this.state='idle';
       this.absentSince??=time;
       if(time-this.absentSince>=220)this.latched=false;
+      // Brief missing detections pause the hold and preserve an armed gesture.
+      // Explicit release and identity changes still cancel immediately.
+      if(!cancelled&&this.identity&&time-this.previousSeen<=TRACKING_GRACE_MS&&
+         (!this.armedUntil||time<=this.armedUntil)){
+        this.missingSince??=this.previousSeen;
+        this.reason='tracking-gap';return 0;
+      }
+      this.history=[];this.still=null;this.identity=null;
+      this.missingSince=null;
+      this.armedUntil=0;this.progress=0;this.state='idle';
       return 0;
     }
     this.absentSince=null;
-    const identity=String(result.personId??'body')+':'+selected.side;
-    if(time-this.previousSeen>220||(this.identity&&identity&&this.identity!==identity)){
+    const identity=person+':'+selected.side;
+    if(time-this.previousSeen>TRACKING_GRACE_MS||(this.identity&&this.identity!==identity)){
       this.history=[];this.still=null;this.armedUntil=0;
+    }else if(this.missingSince!==null&&this.still&&!this.armedUntil){
+      this.still.time+=time-this.missingSince;
     }
+    this.missingSince=null;
     this.previousSeen=time;
     this.identity=identity;
     if(this.latched){
@@ -53,8 +72,8 @@ export class AirSwipeDetector {
     }
     if(time<this.cooldownUntil){this.history=[];this.state='cooldown';return 0;}
     if(!this.armedUntil){
-      if(!this.still||distance(point,this.still)>.045)this.still={...point,time};
-      this.progress=Math.min(1,(time-this.still.time)/700);this.state='holding';
+      if(!this.still||distance(point,this.still)>.06)this.still={...point,time};
+      this.progress=Math.min(1,(time-this.still.time)/HOLD_MS);this.state='holding';
       if(this.progress<1)return 0;
       this.armedUntil=time+2000;this.history=[];
     }
@@ -63,18 +82,18 @@ export class AirSwipeDetector {
     }
     this.state='armed';this.progress=1;
     const previous=this.history.at(-1);
-    // Never bridge lost tracking or a sudden jump to another hand.
-    if(previous&&distance(point,previous)>.22){
+    // A reacquired hand can travel farther between samples; reject teleports.
+    if(previous&&distance(point,previous)>Math.min(.36,Math.max(.22,.06+(time-previous.time)*.002))){
       this.history=[];this.still=null;this.armedUntil=0;this.progress=0;this.state='idle';return 0;
     }
     this.history.push({...point,time});
-    this.history=this.history.filter(p=>time-p.time<=650);
+    this.history=this.history.filter(p=>time-p.time<=SWIPE_WINDOW_MS);
     if(this.history.length<3)return 0;
     const start=this.history[0],dx=point.x-start.x,dy=point.y-start.y;
     const elapsed=time-start.time;
     const travel=this.history.slice(1).reduce((sum,p,i)=>sum+Math.abs(p.x-this.history[i].x),0);
     const ys=this.history.map(p=>p.y);
-    if(elapsed<120||Math.abs(dx)<.20||Math.abs(dx)<Math.abs(dy)*2.3||
+    if(elapsed<120||Math.abs(dx)<.18||Math.abs(dx)<Math.abs(dy)*2||
        Math.max(...ys)-Math.min(...ys)>.14||Math.abs(dx)<travel*.8)return 0;
     this.history=[];this.latched=true;this.still={...point,time};this.cooldownUntil=time+1000;
     this.armedUntil=0;this.progress=0;this.state='cooldown';

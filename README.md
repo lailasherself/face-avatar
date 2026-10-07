@@ -143,12 +143,15 @@ transition limiter. All eight rigs pass the synthetic continuity and response
 checks, but this does not measure physical camera-to-display latency.
 
 Normal arm movement does not change characters. To switch, hold ONE open palm
-toward the camera at shoulder height or higher, steadily for 0.7 seconds. The hand
+toward the camera at shoulder height or higher, steadily for 0.4 seconds. The hand
 indicator fills and arrows appear when ready. Then swipe horizontally across about
-a quarter of the camera view in under two-thirds of a second. From the visitor's
+a fifth of the camera view within 0.85 seconds. From the visitor's
 perspective, left selects the next alien and right selects the previous alien.
 Readiness expires after two seconds. Lower/close the hand to cancel or to rearm
-after a swap; each hold permits one swap. Your other hand can stay visible and
+after a swap; each hold permits one swap. Missing hand/body detections up to 240 ms
+preserve readiness, but do not count toward completing the hold. Closing or
+lowering the hand, changing people, or raising both palms cancels readiness.
+Your other hand can stay visible and
 lowered. Two raised open palms cannot arm switching.
 The lower-body pose stays fixed throughout.
 

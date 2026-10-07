@@ -6,6 +6,8 @@ const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).cha
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  try{
   const page=await browser.newPage({viewport:{width:1440,height:1080}}),errors=[];
+  fs.mkdirSync('.context/qa',{recursive:true});
+  await page.route('**/.context/qa/right_hands.jpg',route=>route.fulfill({path:process.env.HAND_FIXTURE||'.context/qa/right_hands.jpg',contentType:'image/jpeg'}));
   page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>{
    const Original=Worker;
@@ -21,7 +23,7 @@ const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).cha
     window.cameraTimer=setInterval(()=>ctx.fillRect(0,0,960,540),33);return c.captureStream(30);
    };
   });
-  await page.goto('http://localhost:8014/cockpit.html?qa&assets=3dai&character=orbit');
+  await page.goto(`${process.env.INSTALLATION_URL||'http://localhost:8014'}/cockpit.html?qa&assets=3dai&character=orbit`);
   await page.waitForFunction(()=>window.fleetQA?.handTrackingReady,null,{timeout:60000});
   await page.evaluate(async()=>{
    window.injectMotion=true;window.swipeSamples=[];
@@ -41,7 +43,7 @@ const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).cha
    if(!active||!resting)throw Error('Reference hands not found');
    const canvas=document.createElement('canvas');canvas.width=960;canvas.height=540;
    const ctx=canvas.getContext('2d'),sw=image.width/2,scale=100/sw;
-   window.sendPhotoHands=async(x,lowered=false)=>{
+   window.sendPhotoHands=async(x,lowered=false,drop=false)=>{
     const time=performance.now(),y=lowered?330:100;
     ctx.fillStyle='#ddd';ctx.fillRect(0,0,960,540);
     ctx.drawImage(image,sw,0,sw,image.height,x,y,100,image.height*scale);
@@ -53,12 +55,13 @@ const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).cha
      poseLandmarks[s]={x:side==='L'?.5:.65,y:.5,z:0,visibility:.99,presence:.99};handHints[side]=mapped[9];
     }
     const data=await send({type:'frame',time,frame:await createImageBitmap(canvas),body:{poseLandmarks,poseWorldLandmarks:[],handHints}});
+    if(drop)data.result.landmarks=[];
     motionWorker.dispatchEvent(new MessageEvent('message',{data:{...data,synthetic:true}}));
-    const sample={x,lowered,detected:data.result.landmarks.length,ageMs:performance.now()-time,state:fleetQA.swapState,reason:fleetQA.swapReason,character:fleetQA.character};
+    const sample={x,lowered,drop,time,detected:data.result.landmarks.length,ageMs:performance.now()-time,state:fleetQA.swapState,reason:fleetQA.swapReason,character:fleetQA.character};
     swipeSamples.push(sample);return sample;
    };
   });
-  const sample=(x,lowered=false)=>page.evaluate(({x,lowered})=>sendPhotoHands(x,lowered),{x,lowered});
+  const sample=(x,lowered=false,drop=false)=>page.evaluate(({x,lowered,drop})=>sendPhotoHands(x,lowered,drop),{x,lowered,drop});
   const hold=async x=>{
    for(let i=0;i<25;i++){
     const state=await sample(x);if(state.state==='armed')return;
@@ -70,8 +73,12 @@ const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).cha
   for(const x of [300,360,420,480,540]){await sample(x);await page.waitForTimeout(30);}
   assert.equal(await page.evaluate(()=>fleetQA.character),'orbit');
   for(let i=0;i<5;i++){await sample(300,true);await page.waitForTimeout(60);}
-  await hold(300);await page.screenshot({path:'.context/qa/swipe-ready.png'});
-  for(const x of [350,400,450,500,550]){await sample(x);await page.waitForTimeout(30);}
+  await hold(300);
+  for(const x of [350,400,450,500,550]){
+   const state=await sample(x,false,x===400);
+   if(x===400){assert.equal(state.state,'armed',JSON.stringify(await page.evaluate(()=>swipeSamples.slice(-6))));assert.equal(state.reason,'tracking-gap');}
+   await page.waitForTimeout(30);
+  }
   await page.waitForFunction(id=>fleetQA.character===id,nextCharacter,{timeout:15000}).catch(async error=>{
    fs.writeFileSync('.context/qa/air-swipe-failure.json',JSON.stringify(await page.evaluate(()=>({samples:swipeSamples,qa:fleetQA,notice:document.getElementById('notice').textContent})),null,2));
    throw error;
@@ -92,6 +99,6 @@ const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).cha
   assert.deepEqual(errors,[]);
   fs.writeFileSync('.context/qa/air-swipe.json',JSON.stringify({samples,errors,realHandModel:true,simulatedBodyHints:true,physicalCameraTested:false},null,2));
   await page.screenshot({path:'.context/qa/swipe-complete.png'});
-  console.log('PASS real hand-model replay switches Orbit -> '+nextCharacter+' -> Orbit; visible resting hand, hold, recoil guard, one camera and clean screen');
+  console.log('PASS real hand-model replay switches Orbit -> '+nextCharacter+' -> Orbit; missed detection recovery, resting hand, recoil guard and one camera');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
