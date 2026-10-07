@@ -38,11 +38,26 @@ export function armDirections(pose,world,aspectRatio=4/3){
   return arms;
 }
 
+// Shoulder span in normalized image units: the visitor's size in frame. Every
+// gesture distance scales with it so swipes work the same at 1.2m and 3m.
+export const shoulderWidth=pose=>{
+  const l=pose?.[11],r=pose?.[12];
+  return inFrame(l)&&inFrame(r)?Math.hypot(l.x-r.x,l.y-r.y):null;
+};
+// How far below the shoulder line a palm may sit and still count as raised.
+// A natural "stop" palm (elbow bent, forearm vertical) keeps the wrist near the
+// shoulder, so allow about half a shoulder span of slack rather than a fixed 4%.
+export const raisedSlack=pose=>Math.max(.04,(shoulderWidth(pose)||0)*.6);
+export const handLowered=(pose,side)=>{
+  const shoulder=pose?.[side==='L'?12:11],wrist=pose?.[side==='L'?16:15];
+  return visible(shoulder)&&visible(wrist)&&wrist.y>=shoulder.y+raisedSlack(pose);
+};
 export function raisedPalmBodySide(hand,pose){
   if(pose?.length!==33||!inFrame(hand?.[0]))return null;
+  const slack=raisedSlack(pose),reach=Math.max(.12,(shoulderWidth(pose)||0)*.5);
   const matches=[['R',11,15],['L',12,16]].filter(([,s,w])=>inFrame(pose[s])&&inFrame(pose[w])&&
-    hand[0].y<pose[s].y+.04).map(([side,,w])=>({side,distance:Math.hypot(hand[0].x-pose[w].x,hand[0].y-pose[w].y)}))
-    .filter(m=>m.distance<.12).sort((a,b)=>a.distance-b.distance);
+    hand[0].y<pose[s].y+slack).map(([side,,w])=>({side,distance:Math.hypot(hand[0].x-pose[w].x,hand[0].y-pose[w].y)}))
+    .filter(m=>m.distance<reach).sort((a,b)=>a.distance-b.distance);
   if(matches.length>1&&matches[1].distance-matches[0].distance<.025)return null;
   return matches[0]?.side??null;
 }

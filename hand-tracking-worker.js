@@ -1,7 +1,20 @@
 // Safari's MediaPipe build avoids OffscreenCanvas and falls back to document.createElement('canvas'),
 // which throws "Can't find variable: document" inside a worker. Route that fallback back to OffscreenCanvas.
 self.document??={createElement:tag=>tag==='canvas'?new OffscreenCanvas(1,1):{},body:{appendChild(){}}};
-let poseTracker=null,hands=null,handBusy=false,handWatchdog;
+let poseTracker=null,hands=null,handBusy=false,handWatchdog,pendingHand=null;
+// Hand inference takes about as long as pose inference, so refusing frames while
+// busy halved the hand sample rate. Queue the newest frame instead (depth one):
+// the hand model stays continuously fed at most one pose frame behind.
+function sendHand(frame,time,body){
+  handBusy=true;
+  handWatchdog=setTimeout(()=>self.postMessage({type:'error',message:'Finger tracking frame timed out'}),10000);
+  try{hands.postMessage({type:'frame',frame,time,body},[frame]);}
+  catch(error){frame.close();handBusy=false;throw error;}
+}
+function queueHand(frame,time,body){
+  if(!handBusy){sendHand(frame,time,body);return;}
+  pendingHand?.frame.close();pendingHand={frame,time,body};
+}
 self.onmessage=async({data})=>{
   try{
     if(data.type==='init'){
@@ -12,6 +25,10 @@ self.onmessage=async({data})=>{
           clearTimeout(handWatchdog);handBusy=false;
           if(data.type==='error'){reject(new Error(data.message));self.postMessage(data);return;}
           self.postMessage({...data,independentHands:true});
+          if(pendingHand){
+            const next=pendingHand;pendingHand=null;
+            try{sendHand(next.frame,next.time,next.body);}catch(error){self.postMessage({type:'error',message:error.message});}
+          }
         };
         hands.onerror=e=>{e.preventDefault();reject(new Error(e.message));self.postMessage({type:'error',message:e.message});};
         hands.postMessage({type:'init'});
@@ -32,13 +49,7 @@ self.onmessage=async({data})=>{
       let pose;
       try{pose=poseTracker.detectForVideo(small,data.time);}finally{small.close();}
       const body={poseLandmarks:pose.landmarks[0]||[],poseWorldLandmarks:pose.worldLandmarks[0]||[],aspectRatio:data.frame.width/data.frame.height};
-      if(!handBusy){
-        handBusy=true;
-        const frame=await createImageBitmap(data.frame);
-        handWatchdog=setTimeout(()=>self.postMessage({type:'error',message:'Finger tracking frame timed out'}),10000);
-        try{hands.postMessage({type:'frame',frame,time:data.time,body},[frame]);}
-        catch(error){frame.close();throw error;}
-      }
+      queueHand(await createImageBitmap(data.frame),data.time,body);
       self.postMessage({type:'pose',time:data.time,result:body,complete:true});
     }
   }catch(error){self.postMessage({type:'error',message:error.message});}

@@ -192,3 +192,23 @@ test('arm directions mirror both sides, keep upper/lower independent, and reject
   frame.poseWorldLandmarks[13].z=NaN;
   assert.deepEqual(armDirections(frame.poseLandmarks,frame.poseWorldLandmarks),{});
 });
+test('swipe length and raised-palm slack scale with the visitor\'s size in frame',()=>{
+  // A visitor standing far away: shoulders span .14 of the frame instead of .24.
+  const far=options=>{const f=motionFrame(options);f.poseLandmarks[11].x=.57;f.poseLandmarks[12].x=.43;return f;};
+  const d=new AirSwipeDetector();
+  for(let i=0;i<=9;i++)d.update(far({x:.3}),i*80);
+  assert.equal(d.state,'armed');
+  const events=Array.from({length:5},(_,i)=>d.update(far({x:.3+.12*i/4}),800+i*80));
+  assert.deepEqual(events.filter(Boolean),[1],'a shoulder-scaled swipe switches at distance');
+  // Near the shoulder line the palm still counts as raised; a palm at the waist does not.
+  const slack=new AirSwipeDetector();
+  for(let time=0;time<=800;time+=80)slack.update(motionFrame({y:.5}),time);
+  assert.equal(slack.state,'armed','palm slightly below the shoulders still arms');
+  const low=new AirSwipeDetector();
+  for(let time=0;time<=800;time+=80)low.update(motionFrame({y:.65}),time);
+  assert.notEqual(low.state,'armed');
+  // Lowering the active hand past the body-relative slack cancels readiness.
+  const cancel=new AirSwipeDetector();hold(cancel);
+  const dropped=motionFrame();dropped.poseLandmarks[16].y=.75;dropped.landmarks=[];
+  cancel.update(dropped,800);assert.equal(cancel.state,'idle');
+});
