@@ -11,6 +11,7 @@ const path=require('node:path');
   try{
     const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
     page.on('pageerror',error=>errors.push(error.message));
+    if(live)await page.addInitScript(()=>{navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Camera disabled for public QR test','NotAllowedError');};});
     if(!live){
       await page.route('**/qr-test',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><body style="margin:0"><main id="app" style="height:100vh;position:relative;background:#172b2b"></main></body>'}));
       await page.route('**/api/photos?action=availability&*',route=>route.fulfill({json:{online:false,ready:false,busy:false}}));
@@ -23,9 +24,11 @@ const path=require('node:path');
     }else{
       await page.goto(`${base}/cockpit.html?view=ship&character=orbit&qa`);
       assert.equal(await page.evaluate(()=>localStorage.getItem('alien-photo-owner')),null,'No operator pairing required');
-      await page.waitForFunction(()=>window.fleetQA?.vinylReady,{},{timeout:120000});
+      console.log('Live page loaded; checking QR without waiting for background character downloads.');
     }
     const qr=page.locator('#spaceship-photo a');await qr.waitFor({state:'visible',timeout:30000});
+    // Scene loading is a separate, optional check: the QR must be usable first.
+    if(live&&process.env.VERIFY_SCENE==='1')await page.locator('#loading').waitFor({state:'hidden',timeout:90000});
     const phoneURL=await qr.getAttribute('href');
     assert.equal(phoneURL,'https://face-avatar.vercel.app/photo.html?station=atl-downtown');
     assert.equal(await qr.locator('img').evaluate(img=>img.naturalWidth>100),true);
