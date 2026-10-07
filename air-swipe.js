@@ -1,7 +1,18 @@
-import {raisedPalmBodySide,handLowered,shoulderWidth} from './body-motion.js';
+import {raisedPalmBodySide,handLowered,shoulderWidth,raisedSlack} from './body-motion.js';
 import {trackedFingerCurls} from './finger-motion.js';
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const HOLD_MS=400,TRACKING_GRACE_MS=240,SWIPE_WINDOW_MS=850;
+const HOLD_MS=400,SWIPE_WINDOW_MS=850;
+// A hand may vanish for this long and resume the same gesture. One dropped hand
+// frame on a slow kiosk (hand inference ~150 ms) is a 300 ms gap, so 240 ms was
+// cancelling real swipes mid-motion.
+const TRACKING_GRACE_MS=400;
+// A release (palm closes, hand drops, second palm appears) must persist this long
+// before it cancels. Motion blur during a fast swipe closes the detected palm for
+// a frame or two; a visitor lowering their arm stays lowered far longer.
+const RELEASE_MS=160;
+// After the body pose loses the wrist, keep following the same open palm by
+// position for this long. Pose landmarks flicker far more than hand detection.
+const STICKY_MS=600;
 // A deliberate swipe is about three quarters of the visitor's shoulder span,
 // bounded so a close visitor still has to travel and a far one still can.
 const swipeDistance=width=>width?Math.min(.18,Math.max(.10,width*.75)):.18;
@@ -30,6 +41,7 @@ export class AirSwipeDetector {
     this.reason='waiting';
     this.missingSince=null;
     this.bodyWidth=null;this.lastPoint=null;this.lastDx=0;
+    this.anchor=null;this.raisedLimit=null;this.releaseSince=null;this.sticky=false;
   }
   update(result,time){
     if(!Number.isFinite(time)||time<=this.lastTime)return 0;
@@ -38,15 +50,29 @@ export class AirSwipeDetector {
     // must not cancel the visitor's deliberately raised palm.
     const observations=(result?.landmarks||[]).map(hand=>({side:raisedPalmBodySide(hand,result.poseLandmarks),point:openPalm(hand)}));
     const candidates=observations.filter(c=>c.side&&c.point);
-    const selected=candidates.length===1?candidates[0]:null,point=selected?.point;
     const person=String(result?.personId??'body');
     const activeSide=this.identity?.split(':').at(-1);
     const pose=result?.poseLandmarks;
     this.bodyWidth=shoulderWidth(pose)??this.bodyWidth;
+    let selected=candidates.length===1?candidates[0]:null;
+    this.sticky=false;
+    if(!selected&&!candidates.length&&this.identity&&this.anchor&&time-this.previousSeen<=STICKY_MS){
+      // The pose wrist dropped out but one open palm is still where the tracked
+      // hand just was (allowing for travel during the gap) and not below the last
+      // known shoulder line: keep following it rather than restarting the gesture.
+      const open=observations.filter(o=>o.point);
+      const reach=Math.max(.12,(this.bodyWidth||0)*.6)+(time-this.previousSeen)*.001;
+      if(open.length===1&&distance(open[0].point,this.anchor)<reach&&(this.raisedLimit===null||open[0].point.y<this.raisedLimit)){
+        selected={side:activeSide,point:open[0].point};this.sticky=true;
+      }
+    }
+    const point=selected?.point;
     this.lastPoint=point||null;this.lastDx=0;
     const personChanged=this.identity&&this.identity!==person+':'+activeSide;
-    const cancelled=personChanged||candidates.length>1||observations.some(o=>o.side===activeSide&&!o.point)||
-      (activeSide&&handLowered(pose,activeSide));
+    const releasing=candidates.length>1||observations.some(o=>o.side===activeSide&&!o.point)||
+      (!!activeSide&&handLowered(pose,activeSide));
+    this.releaseSince=releasing?(this.releaseSince??time):null;
+    const cancelled=personChanged||(releasing&&time-this.releaseSince>=RELEASE_MS);
     this.reason=selected?'eligible':candidates.length>1?'multiple-raised-palms':'no-raised-palm';
     if(!point){
       this.absentSince??=time;
@@ -59,11 +85,16 @@ export class AirSwipeDetector {
         this.reason='tracking-gap';return 0;
       }
       this.history=[];this.still=null;this.identity=null;
-      this.missingSince=null;
+      this.missingSince=null;this.anchor=null;this.raisedLimit=null;
       this.armedUntil=0;this.progress=0;this.state='idle';
       return 0;
     }
     this.absentSince=null;
+    this.anchor=point;
+    if(!this.sticky){
+      const shoulder=pose?.[selected.side==='L'?12:11];
+      this.raisedLimit=shoulder&&Number.isFinite(shoulder.y)?shoulder.y+raisedSlack(pose):null;
+    }
     const identity=person+':'+selected.side;
     if(time-this.previousSeen>TRACKING_GRACE_MS||(this.identity&&this.identity!==identity)){
       this.history=[];this.still=null;this.armedUntil=0;
@@ -186,7 +217,7 @@ export class AirSwipeTracker {
     const g=this.detector,d=this.handDiagnostics,p=g.lastPoint;
     this.trace.push({t:Math.round(time),ageMs:Math.round(age),inferenceMs:Math.round(d.inferenceMs||0),mode:d.mode,
       detected,matched,hand:g.identity,palm:p?[+p.x.toFixed(3),+p.y.toFixed(3)]:null,state:g.state,reason:g.reason,
-      progress:+g.progress.toFixed(2),dx:+g.lastDx.toFixed(3),bodyWidth:g.bodyWidth&&+g.bodyWidth.toFixed(3),direction});
+      progress:+g.progress.toFixed(2),dx:+g.lastDx.toFixed(3),bodyWidth:g.bodyWidth&&+g.bodyWidth.toFixed(3),sticky:g.sticky||undefined,direction});
     if(this.trace.length>1200)this.trace.splice(0,this.trace.length-1200);
   }
   fail(error){if(this.stopped)return;this.stop();this.onError(error);}
