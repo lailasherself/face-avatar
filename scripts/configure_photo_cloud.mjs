@@ -1,7 +1,7 @@
 // Explicit provisioning for this installation only. Secrets never enter Git or stdout.
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
-import {writeFileSync} from 'node:fs';
+import {mkdirSync,writeFileSync} from 'node:fs';
 import {newRoom} from '../server/photo-state.mjs';
 import {supabase,STATION} from '../server/photo-store.mjs';
 
@@ -22,6 +22,7 @@ function secret(name){
 }
 const owner=secret('face-avatar.photo-owner');
 const cleanup=secret('face-avatar.photo-cleanup');
+run('supabase',['link','--project-ref',ref]);
 const existing=await supabase(`/rest/v1/photo_stations?id=eq.${STATION}&select=id`);
 if(!existing.length)await supabase('/rest/v1/photo_stations',{method:'POST',body:{id:STATION,state:newRoom(STATION,owner)}});
 run('supabase',['secrets','set',`PHOTO_CLEANUP_SECRET=${cleanup}`,'--project-ref',ref]);
@@ -43,8 +44,9 @@ $job$);
 `;
 run('supabase',['db','query','--linked',sql,'--output','json']);
 for(const [name,value] of Object.entries({SUPABASE_URL:url,SUPABASE_SERVICE_ROLE_KEY:process.env.SUPABASE_SERVICE_ROLE_KEY})){
-  run('npx',['--yes','vercel@latest','env','add',name,'production','--yes','--sensitive','--force','--scope','lailasherselfs-projects'],{input:value,cwd:'.context/release-photos'});
+  run('npx',['--yes','vercel@latest','env','add',name,'production','--project','face-avatar','--yes','--sensitive','--force','--scope','lailasherselfs-projects'],{input:value});
 }
 const stationURL=`https://face-avatar.vercel.app/cockpit.html?assets=3dai&view=ship&character=orbit#photo-owner=${owner}`;
+mkdirSync('.context',{recursive:true});
 writeFileSync('.context/photo-station-launch.html',`<!doctype html><meta name="referrer" content="no-referrer"><title>Open camera station</title><a href="${stationURL}">Open private camera station</a>`,{mode:0o600});
 console.log('Provisioned private station, cleanup schedule, and production environment. Private launch link: .context/photo-station-launch.html');

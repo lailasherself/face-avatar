@@ -28,6 +28,8 @@ test('concurrent visitor starts have only one winner',()=>{
 });
 function capture(f){
   transition(f.room,'visitor',f.visitor,'start',{},f.now);
+  const ack=transition(f.room,'operator',f.owner,'heartbeat',f.beat,f.now).response;
+  assert.equal(ack.state,'countdown');assert.equal(ack.remaining,5);
   const command=transition(f.room,'operator',f.owner,'heartbeat',f.beat,f.now+5001).response;
   assert.equal(command.state,'processing');
   transition(f.room,'operator',f.owner,'complete',{instance:f.instance,job:command.job,imagePath:'test.jpg'},f.now+5002);
@@ -57,4 +59,11 @@ test('retake revokes the old photo before another countdown',()=>{
   const result=transition(f.room,'visitor',f.visitor,'cancel',{},f.now+6000);
   assert.deepEqual(result.remove,['test.jpg']);
   assert.throws(()=>transition(f.room,'visitor',f.visitor,'image',{},f.now+6100),{status:404});
+});
+test('slow camera acknowledgement does not consume countdown time',()=>{
+  const f=fixture();
+  const start=transition(f.room,'visitor',f.visitor,'start',{},f.now).response;
+  assert.equal(start.state,'arming');assert.equal(start.remaining,0);
+  const ack=transition(f.room,'operator',f.owner,'heartbeat',f.beat,f.now+6000).response;
+  assert.equal(ack.state,'countdown');assert.equal(ack.remaining,5);
 });

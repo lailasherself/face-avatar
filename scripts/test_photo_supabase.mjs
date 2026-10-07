@@ -18,6 +18,8 @@ try{
   const starts=await Promise.allSettled(visitors.map(secret=>perform(STATION,'visitor',secret,'start')));
   assert.equal(starts.filter(x=>x.status==='fulfilled').length,1);
   const winner=visitors[starts.findIndex(x=>x.status==='fulfilled')],other=visitors.find(x=>x!==winner);
+  const ack=await perform(STATION,'operator',owner,'heartbeat',beat);
+  assert.equal(ack.state,'countdown');assert.equal(ack.remaining,5);
   await new Promise(r=>setTimeout(r,5100));
   const command=await perform(STATION,'operator',owner,'heartbeat',beat);
   assert.equal(command.state,'processing');
