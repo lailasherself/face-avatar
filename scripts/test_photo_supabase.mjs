@@ -1,0 +1,51 @@
+// Uses the dedicated project and synthetic JPEG bytes, never a visitor photo.
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {token} from '../server/photo-state.mjs';
+import {perform,supabase,STATION} from '../server/photo-store.mjs';
+const ref='ysxjztjiajszyvxfzfhn';
+const keys=JSON.parse(execFileSync('supabase',['projects','api-keys','--project-ref',ref,'--output','json'],{encoding:'utf8'}));
+process.env.SUPABASE_URL=`https://${ref}.supabase.co`;
+process.env.SUPABASE_SERVICE_ROLE_KEY=keys.find(k=>k.name==='service_role').api_key;
+const owner=execFileSync('security',['find-generic-password','-a','face-avatar','-s','face-avatar.photo-owner','-w'],{encoding:'utf8'}).trim();
+const beat={instance:token(),ready:true,people:1,person:'automated-fixture',character:'orbit'};
+let visitors=[];
+try{
+  await perform(STATION,'operator',owner,'heartbeat',beat);
+  const [a,b]=await Promise.all([perform(STATION,'visitor',null,'create'),perform(STATION,'visitor',null,'create')]);
+  visitors=[a.token,b.token];
+  await assert.rejects(()=>perform(STATION,'operator',a.token,'heartbeat',beat),{status:403});
+  const starts=await Promise.allSettled(visitors.map(secret=>perform(STATION,'visitor',secret,'start')));
+  assert.equal(starts.filter(x=>x.status==='fulfilled').length,1);
+  const winner=visitors[starts.findIndex(x=>x.status==='fulfilled')],other=visitors.find(x=>x!==winner);
+  await new Promise(r=>setTimeout(r,5100));
+  const command=await perform(STATION,'operator',owner,'heartbeat',beat);
+  assert.equal(command.state,'processing');
+  const jpeg=Buffer.from([255,216,255,224,0,2,255,217]);
+  await perform(STATION,'operator',owner,'complete',{instance:beat.instance,job:command.job},jpeg);
+  assert.deepEqual(await perform(STATION,'visitor',winner,'image'),jpeg);
+  await assert.rejects(()=>perform(STATION,'visitor',other,'image'),{status:404});
+  const [{path}]=await supabase('/rest/v1/photo_objects?select=path');
+  const publicRead=await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/public/alien-photos/${path}`);
+  assert.notEqual(publicRead.status,200,'Bucket is private');
+  const anon=keys.find(k=>k.name==='anon').api_key;
+  const unauthorized=await fetch(`${process.env.SUPABASE_URL}/rest/v1/photo_stations?select=*`,{headers:{apikey:anon,Authorization:`Bearer ${anon}`}});
+  assert.ok([401,403].includes(unauthorized.status),'Anonymous clients cannot read station credentials');
+  await perform(STATION,'visitor',winner,'delete');visitors=visitors.filter(x=>x!==winner);
+  const deleted=await supabase(`/rest/v1/photo_objects?path=eq.${encodeURIComponent(path)}&select=path`);
+  assert.equal(deleted.length,0);
+  const storageRows=await supabase('/storage/v1/object/list/alien-photos',{method:'POST',body:{prefix:STATION,limit:100}});
+  assert.ok(!storageRows.some(row=>path.endsWith('/'+row.name)),'Delete removes the stored object');
+  const expiredPath=`${STATION}/expiry-test-${token()}.jpg`;
+  await supabase('/rest/v1/photo_objects',{method:'POST',body:{path:expiredPath,expires_at:new Date(Date.now()-1000).toISOString()}});
+  await supabase(`/storage/v1/object/alien-photos/${expiredPath}`,{method:'POST',body:jpeg});
+  const cleanupSecret=execFileSync('security',['find-generic-password','-a','face-avatar','-s','face-avatar.photo-cleanup','-w'],{encoding:'utf8'}).trim();
+  const cleanup=await fetch(`${process.env.SUPABASE_URL}/functions/v1/photo-cleanup`,{method:'POST',headers:{'x-cleanup-token':cleanupSecret}});
+  assert.equal(cleanup.status,200);
+  const afterCleanup=await supabase(`/rest/v1/photo_objects?path=eq.${encodeURIComponent(expiredPath)}&select=path`);
+  assert.equal(afterCleanup.length,0,'Expired uploads are physically reclaimed');
+  console.log('PASS: real Supabase upload/download, private bucket, RLS, competing captures, visitor isolation, physical deletion.');
+}finally{
+  for(const visitor of visitors)await perform(STATION,'visitor',visitor,'delete').catch(()=>{});
+  await perform(STATION,'operator',owner,'heartbeat',{...beat,ready:false,people:0,person:null}).catch(()=>{});
+}

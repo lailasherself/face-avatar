@@ -19,13 +19,23 @@ import { attachSmileBite } from './smile-rig.js';
 import { ZedSource } from './zed-source.js';
 import { CameraFraming, cameraConstraints } from './camera-framing.js';
 import { VinylPreview } from './vinyl-preview.js';
+import { captureAlien, brandAlienPhoto } from './photo-render.js';
+import { AlienHeadEffect } from './alien-head-effect.js';
+import { photoConfiguration, SpaceshipPhoto } from './spaceship-photo.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, lo=0, hi=1) => Math.min(hi, Math.max(lo, v));
 const params=new URLSearchParams(location.search);
 const setupMode=params.has('setup');
+const arMode=params.has('ar')&&!setupMode;
+const photoConfig=setupMode||arMode?{enabled:false}:await photoConfiguration();
+const photoEnabled=!setupMode&&!arMode&&(photoConfig.enabled&&(photoConfig.mode!=='cloud'||photoConfig.operator)||params.has('photos')&&photoConfig.mode!=='cloud');
 let displayView=!setupMode&&['tv','ship','vinyl'].includes(params.get('view'))?params.get('view'):!setupMode&&params.has('vinyl')?'vinyl':'tv';
-const zedMode=params.get('tracking')==='zed';
+const zedMode=params.get('tracking')==='zed'||photoConfig.enabled&&photoConfig.tracking==='zed';
+const photoDemo=photoEnabled&&(photoConfig.enabled?photoConfig.demo:params.get('photos')==='demo');
+let photoBooth=null;
+let arControls=null;
+const spaceshipPhoto=!setupMode&&!arMode?new SpaceshipPhoto(photoConfig):null;
 const framing=new CameraFraming($('camera-preview'),$('camera-framing'),zedMode ? .6 : .8);
 const eyeSignals=new EyeSignalFilter();
 const scene = new THREE.Scene();
@@ -69,11 +79,13 @@ let vinyl=displayView!=='tv'?new VinylPreview():null;
 
 const loader = new GLTFLoader();
 const fleetStage=new FleetStage(scene,camera,{solo:!setupMode});
+const headEffect=arMode||photoEnabled&&!photoDemo?new AlienHeadEffect(renderer,scene):null;
+function photoPerson(){return zedMode?zedSource?.personId==null?null:`${zedSource.session}:${zedSource.personId}`:'webcam';}
 renderer.domElement.addEventListener('webglcontextrestored',()=>fleetStage.layout(true));
 const characterLoads=new Map();
 let manifest, current, currentIndex=0, requestId=0, bodyPose='Standing';
 let stream=null, landmarker=null, cameraRequest=0, lastVideoTime=-1, lastFaceTime=0;
-let cameraStarting=false,retryTimer=null,cameraWanted=true,lastDetectionTime=0;
+let cameraStarting=false,retryTimer=null,cameraWanted=!photoDemo,lastDetectionTime=0;
 let handTracker=null,tongueTracker=null;
 let zedSource=null;
 let latestFaceLandmarks=null;
@@ -132,6 +144,7 @@ resetView();
 
 function setDisplayView(view,updateURL=true){
   displayView=view;
+  spaceshipPhoto?.setView(view);
   if(view!=='tv'&&!vinyl)vinyl=new VinylPreview();
   for(const tab of $('scene-tabs').querySelectorAll('[role=tab]')){
     const selected=tab.dataset.view===view;
@@ -206,6 +219,7 @@ async function preloadCharacters(){
   }
 }
 async function selectCharacter(index){
+  if(photoBooth?.locked||arControls?.locked)return;
   if(!manifest)return;
   index=(index+manifest.characters.length)%manifest.characters.length;
   const generation=++requestId;
@@ -216,6 +230,7 @@ async function selectCharacter(index){
     if(generation!==requestId)return;
     current=record;currentIndex=index;
     if(record.pose!==bodyPose)preparePose(record,bodyPose);
+    headEffect?.prepare(record);
     fleetStage.select(index,manifest.characters.length);
     resetView();
     const meshes=record.meshes,boneCount=record.rest.length;
@@ -300,6 +315,7 @@ async function startCamera(){
     if(zedMode){
       zedSource=new ZedSource((body,capturedAt,changed)=>{
         if(changed){
+          headEffect?.clear();
           resetMotion();resetExpression();eyeSignals.reset();latestFaceLandmarks=null;
           handTracker?.detector.reset();landmarker?.invalidate(capturedAt);
           tongueTracker?.sample($('camera-preview'),null,performance.now());
@@ -320,7 +336,7 @@ async function startCamera(){
     };
     if(!landmarker){
       status('Loading face tracker');
-      landmarker=new FaceTracker();await landmarker.ready;
+      landmarker=new FaceTracker({maxFaces:headEffect?2:1});await landmarker.ready;
     }
     if(generation!==cameraRequest){cancelled=true;return;}
     resetExpression();eyeSignals.reset();lastVideoTime=-1;lastFaceTime=0;lastDetectionTime=0;baseline={};
@@ -363,6 +379,7 @@ async function startCamera(){
 }
 function scheduleCameraRetry(){clearTimeout(retryTimer);if(cameraWanted&&!document.hidden)retryTimer=setTimeout(startCamera,4000);}
 function stopCamera(preserveIntent=false){
+  headEffect?.clear();
   zedSource?.stop();zedSource=null;
   latestFaceLandmarks=null;
   landmarker?.close();landmarker=null;
@@ -399,7 +416,7 @@ function trackFace(time){
   latestFaceLandmarks=results.faceLandmarks?.[0]||null;
   // The returned bitmap predates face inference. Use its landmarks to locate a
   // fresh camera image, not to queue tongue inference on the same old pixels.
-  results.frame?.close();
+  if(headEffect)headEffect.accept(results,photoPerson());else results.frame?.close();
   tongueTracker?.sampleLatest(video,latestFaceLandmarks,time,performance.now(),zedSource?.capturedAt);
   const dt=lastDetectionTime?clamp((time-lastDetectionTime)/1000,.001,.15):1/30;
   lastDetectionTime=time;
@@ -496,6 +513,19 @@ renderer.setAnimationLoop(time=>{
   if(stream)target.tongueOut=tongueTracker?.value(time)||0;
   if(!handTracker?.ready||time-handTracker.lastResultTime>400)$('swap-cue').hidden=true;
   driveFace(dt,time);current?.collisions.update(dt);current?.correctives.update(bodyPose);controls.update();
+  if(arMode&&current){
+    const ready=!!stream&&headEffect.fresh(photoPerson());
+    if(ready&&(headEffect.renderedAt!==headEffect.sample.captureTime||headEffect.character!==current.info.id)){
+      try{headEffect.render(current,photoPerson());}catch(error){notice(`Alien camera: ${error.message}`);}
+    }
+    if(!ready)headEffect.cameraOnly(photoPerson());
+    arControls?.update({ready:ready&&headEffect.character===current.info.id&&!!headEffect.renderedAt,name:current.info.name,camera:!!stream,starting:cameraStarting});
+    return;
+  }
+  // Compile the head-only render before the phone can start a timed capture.
+  if(photoEnabled&&!photoDemo&&current&&headEffect.character!==current.info.id&&headEffect.fresh(photoPerson())){
+    headEffect.render(current,photoPerson());
+  }
   if(setupMode)fleetStage.layout(true);
   fleetStage.renderBackdrop(renderer);
   if(displayView!=='tv')vinyl.render(renderer,scene,camera,displayView==='ship');else renderer.render(scene,camera);
@@ -520,7 +550,26 @@ try{
   }));
   const initial=manifest.characters.findIndex(c=>c.id===new URLSearchParams(location.search).get('character'));
   await selectCharacter(Math.max(0,initial));
-  const cameraReady=startCamera();
+  if(arMode){
+    const {ARPhotoControls}=await import('./ar-photo-controls.js');
+    arControls=new ARPhotoControls({canvas:headEffect.canvas,
+      previous:()=>selectCharacter(currentIndex-1),next:()=>selectCharacter(currentIndex+1),retry:startCamera,
+      capture:()=>({canvas:brandAlienPhoto(headEffect.snapshot(current,photoPerson()),current.info.name),name:current.info.name})});
+  }
+  if(photoEnabled){
+    const {PhotoBooth}=await import('./photo-booth.js');
+    photoBooth=new PhotoBooth({demo:photoDemo,connection:photoConfig,onStatus:state=>spaceshipPhoto?.update(state),
+      captureReady:()=>photoDemo||headEffect.fresh(photoPerson()),
+      state:()=>({ready:!!current&&$('loading').hidden&&(photoDemo||!!stream&&headEffect.character===current.info.id&&(!zedMode||performance.now()-(zedSource?.capturedAt??0)<250)&&headEffect.fresh(photoPerson(),performance.now(),750)),
+        character:current?.info.id,characterName:current?.info.name,
+        person:photoDemo?'demo':photoPerson(),
+        people:photoDemo?1:zedMode?zedSource?.peopleCount??0:headEffect.sample?.faceLandmarks?.length??0}),
+      capture:()=>{
+        if(!photoDemo)return {composite:headEffect.snapshot(current,photoPerson()),name:current.info.name};
+        return {alien:captureAlien(renderer,scene,camera),name:current.info.name};
+      }});
+  }
+  const cameraReady=photoDemo?Promise.resolve():startCamera();
   void preloadCharacters();
   await cameraReady;
   if(params.has('framing'))$('camera-framing').showModal();
@@ -529,6 +578,8 @@ try{
 // Read-only diagnostics for automated export/render checks, enabled explicitly.
 if(new URLSearchParams(location.search).has('qa'))Object.defineProperty(window,'fleetQA',{get:()=>({
   character:current?.info.id,vehicleUUID:null,vehicleVisible:false,pose:bodyPose,displayView,vinylReady:vinyl?.ready??false,
+  ar:headEffect?{frames:headEffect.frames,fresh:headEffect.fresh(photoPerson()),character:headEffect.character,placement:headEffect.placement,
+    headBounds:current&&headEffect.records.get(current)?{center:headEffect.records.get(current).center.toArray(),size:headEffect.records.get(current).size.toArray()}:null}:null,
   armCollisionAdjustments:current?.collisions.adjustments,armPenetration:current?.collisions.penetration,armCollisionMs:current?.collisions.durationMs,
   animations:current?.gltf.animations.map(a=>a.name),
   morphs:current?.meshes.map(m=>({names:Object.keys(m.morphTargetDictionary),weights:[...m.morphTargetInfluences]})),
