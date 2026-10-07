@@ -41,7 +41,9 @@ function render(data){
     $('result-title').textContent=`You as ${character.name}`;
     document.documentElement.style.setProperty('--character-accent',copy?.accent||'#d8f660');
   }
-  const view=data.state==='countdown'?'countdown':data.state==='processing'?'processing':data.state==='done'?'result':'welcome';
+  const view=data.state==='countdown'?'countdown':['arming','processing'].includes(data.state)?'processing':data.state==='done'?'result':'welcome';
+  $('processing').querySelector('h1').textContent=data.state==='arming'?'Getting ready.':'Your alien look.';
+  $('processing').querySelector('[role=status]').textContent=data.state==='arming'?'Connecting to the window camera...':'Your photo is on its way...';
   for(const id of ['welcome','countdown','processing','result'])$(id).hidden=id!==view;
   const availability={offline:'The window is offline. Please try again shortly.',preparing:'The window camera is getting ready...',crowd:'One person at a time. Leave a little space around you.',ready:'Ready when you are. You will have 5 seconds to pose.','no-person':'Stand in front of the window so the camera can see you.'};
   $('availability').textContent=data.busy?'Someone is taking a photo. Please wait.':availability[data.availability]||availability['no-person'];
@@ -110,7 +112,7 @@ setInterval(async()=>{
 },cloud?1000:400);
 setInterval(()=>{if(state?.state==='countdown'&&connected)$('number').textContent=String(Math.max(1,Math.ceil(remaining-(performance.now()-received)/1000)));},100);
 addEventListener('pagehide',()=>{
-  if(token&&['countdown','processing'].includes(state?.state))fetch(cloud?`/api/photos?action=cancel&room=${encodeURIComponent(room)}`:'/api/photo/cancel',{method:'POST',headers:{'X-Face-Avatar':'photo',Authorization:`Bearer ${token}`},keepalive:true}).catch(()=>{});
+  if(token&&['arming','countdown','processing'].includes(state?.state))fetch(cloud?`/api/photos?action=cancel&room=${encodeURIComponent(room)}`:'/api/photo/cancel',{method:'POST',headers:{'X-Face-Avatar':'photo',Authorization:`Bearer ${token}`},keepalive:true}).catch(()=>{});
 });
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)connect();});
 connect();

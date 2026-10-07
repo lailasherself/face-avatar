@@ -22,11 +22,11 @@ function cancelActive(room,message){
 function clean(room,now,remove){
   for(const [id,s] of Object.entries(room.sessions))if(now>=s.expires){delete room.sessions[id];if(s.image)remove.push(s.image);if(room.active===id)room.active=null;}
   const active=room.sessions[room.active];
-  if(active&&(now-room.operatorAt>=10000||now-active.seen>15000||now>active.deadline+15000))cancelActive(room,'Connection lost. Please try again.');
+  if(active&&(now-room.operatorAt>=10000||now-active.seen>15000||(active.state==='arming'?now-active.armedAt>10000:now>active.deadline+15000)))cancelActive(room,'Connection lost. Please try again.');
 }
 function publicState(room,s,now){
   const online=room.operator&&now-room.operatorAt<10000;
-  const character=['countdown','processing','done'].includes(s.state)?s.character:room.operator?.character;
+  const character=['arming','countdown','processing','done'].includes(s.state)?s.character:room.operator?.character;
   return {state:s.state,message:s.message,remaining:Math.max(0,((s.deadline||0)-now)/1000),expiresIn:Math.max(0,(s.expires-now)/1000),
     demo:false,retentionHours:24,ready:ready(room,now),busy:!!room.active,character:characters[character]||null,
     availability:!online?'offline':room.operator.people>1?'crowd':!room.operator.ready?'preparing':ready(room,now)?'ready':'no-person'};
@@ -50,7 +50,12 @@ export function transition(room,role,secret,action,data={},now=Date.now()){
       const s=room.sessions[room.active];
       if(s){
         if(!ready(room,now)||s.person!==data.person||s.character!==data.character)cancelActive(room,'We lost your position. Face the camera and try again.');
-        else {if(now>=s.deadline)s.state='processing';result.response={state:s.state,job:s.job,remaining:Math.max(0,(s.deadline-now)/1000),demo:false};}
+        else {
+          // Start the five seconds only after the camera acknowledges the request.
+          if(s.state==='arming'){s.state='countdown';s.deadline=now+5000;}
+          else if(now>=s.deadline)s.state='processing';
+          result.response={state:s.state,job:s.job,remaining:Math.max(0,(s.deadline-now)/1000),demo:false};
+        }
       }
       result.response??={state:'idle',demo:false};
     }else if(action==='complete'||action==='fail'){
@@ -80,7 +85,7 @@ export function transition(room,role,secret,action,data={},now=Date.now()){
       if(!ready(room,now))fail(409,'Face the camera. One person at a time.');
       if(now-s.lastStart<3000)fail(429,'Please wait a moment before retaking.');
       if(s.image)remove.push(s.image);
-      Object.assign(s,{state:'countdown',deadline:now+5000,expires:now+600000,message:'',person:room.operator.person,character:room.operator.character,job:token(),lastStart:now,image:false});
+      Object.assign(s,{state:'arming',armedAt:now,deadline:null,expires:now+600000,message:'',person:room.operator.person,character:room.operator.character,job:token(),lastStart:now,image:false});
       room.active=id;
     }
   }else if(action==='cancel'){

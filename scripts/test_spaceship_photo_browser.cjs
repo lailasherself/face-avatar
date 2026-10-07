@@ -16,6 +16,11 @@ const assert=require('node:assert/strict');
     if(process.env.CLOUD_PHOTO_OPERATOR)await installation.addInitScript(owner=>localStorage.setItem('alien-photo-owner',owner),process.env.CLOUD_PHOTO_OPERATOR);
     installation.on('pageerror',e=>errors.push(e.message));
     installation.on('console',message=>{if(message.type()==='warning'||message.type()==='error')console.log('Installation:',message.text());});
+    let previousCommand='';
+    installation.on('response',async response=>{
+      if(!response.url().includes('action=heartbeat'))return;
+      try{const data=await response.json(),key=JSON.stringify({state:data.state,error:data.error});if(key!==previousCommand){previousCommand=key;console.log('Camera command:',key);}}catch{}
+    });
     await installation.addInitScript(({source})=>{
       navigator.mediaDevices.getUserMedia=async()=>{
         const img=new Image();img.src=source;await img.decode();
@@ -57,7 +62,8 @@ const assert=require('node:assert/strict');
     await phone.screenshot({path:path.join(output,'phone-ready.png')});
     await phone.locator('#take').click();await phone.locator('#countdown').waitFor({state:'visible'});
     assert.match(await phone.locator('#countdown').innerText(),/Lower your phone/);
-    await installation.getByText('Lower your phone. Look at the camera.',{exact:true}).waitFor({state:'visible'});
+    try{await installation.getByText('Lower your phone. Look at the camera.',{exact:true}).waitFor({state:'visible'});}
+    catch(error){console.log(await phone.locator('body').innerText());console.log(await installation.evaluate(()=>fleetQA.ar));await phone.screenshot({path:path.join(output,'countdown-failure.png')});throw error;}
     await installation.keyboard.press('ArrowRight');await installation.waitForTimeout(200);
     assert.equal(await installation.evaluate(()=>fleetQA.character),'orbit','Selection stays locked during capture');
     await phone.screenshot({path:path.join(output,'phone-countdown.png')});
