@@ -2,22 +2,34 @@
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {token} from '../server/photo-state.mjs';
-import {perform,supabase,STATION} from '../server/photo-store.mjs';
+import {perform,provision,supabase} from '../server/photo-store.mjs';
 const ref='ysxjztjiajszyvxfzfhn';
 const keys=JSON.parse(execFileSync('supabase',['projects','api-keys','--project-ref',ref,'--output','json'],{encoding:'utf8'}));
 process.env.SUPABASE_URL=`https://${ref}.supabase.co`;
 process.env.SUPABASE_SERVICE_ROLE_KEY=keys.find(k=>k.name==='service_role').api_key;
-const owner=execFileSync('security',['find-generic-password','-a','face-avatar','-s','face-avatar.photo-owner','-w'],{encoding:'utf8'}).trim();
+const owner=token(),otherOwner=token();
+const {room:STATION}=await provision(owner,'integration-test');
+const {room:OTHER}=await provision(otherOwner,'integration-test');
 const beat={instance:token(),ready:true,people:1,person:'automated-fixture',character:'orbit'};
 let visitors=[];
 try{
+  assert.notEqual(STATION,OTHER);
+  assert.deepEqual(await provision(owner,'integration-test'),{room:STATION},'Reload resumes the same test station');
+  await assert.rejects(()=>provision('invalid','integration-test'),{status:403});
+  await assert.rejects(()=>perform(OTHER,'operator',owner,'heartbeat',beat),{status:403});
+  await perform(OTHER,'operator',otherOwner,'heartbeat',beat);
+  const otherVisitor=await perform(OTHER,'visitor',null,'create');
   await perform(STATION,'operator',owner,'heartbeat',beat);
   const [a,b]=await Promise.all([perform(STATION,'visitor',null,'create'),perform(STATION,'visitor',null,'create')]);
   visitors=[a.token,b.token];
+  await assert.rejects(()=>perform(STATION,'visitor',otherVisitor.token,'start'),{status:410});
   await assert.rejects(()=>perform(STATION,'operator',a.token,'heartbeat',beat),{status:403});
   const starts=await Promise.allSettled(visitors.map(secret=>perform(STATION,'visitor',secret,'start')));
   assert.equal(starts.filter(x=>x.status==='fulfilled').length,1);
   const winner=visitors[starts.findIndex(x=>x.status==='fulfilled')],other=visitors.find(x=>x!==winner);
+  assert.equal((await perform(OTHER,'visitor',null,'availability')).busy,false,'Other camera remains free');
+  assert.equal((await perform(OTHER,'visitor',otherVisitor.token,'start')).state,'arming','Both cameras can capture independently');
+  await perform(OTHER,'visitor',otherVisitor.token,'cancel');
   const ack=await perform(STATION,'operator',owner,'heartbeat',beat);
   assert.equal(ack.state,'countdown');assert.equal(ack.remaining,5);
   await new Promise(r=>setTimeout(r,5100));
@@ -27,7 +39,7 @@ try{
   await perform(STATION,'operator',owner,'complete',{instance:beat.instance,job:command.job},jpeg);
   assert.deepEqual(await perform(STATION,'visitor',winner,'image'),jpeg);
   await assert.rejects(()=>perform(STATION,'visitor',other,'image'),{status:404});
-  const [{path}]=await supabase('/rest/v1/photo_objects?select=path');
+  const [{path}]=await supabase(`/rest/v1/photo_objects?path=like.${STATION}/*&select=path`);
   const publicRead=await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/public/alien-photos/${path}`);
   assert.notEqual(publicRead.status,200,'Bucket is private');
   const anon=keys.find(k=>k.name==='anon').api_key;
@@ -46,8 +58,12 @@ try{
   assert.equal(cleanup.status,200);
   const afterCleanup=await supabase(`/rest/v1/photo_objects?path=eq.${encodeURIComponent(expiredPath)}&select=path`);
   assert.equal(afterCleanup.length,0,'Expired uploads are physically reclaimed');
-  console.log('PASS: real Supabase upload/download, private bucket, RLS, competing captures, visitor isolation, physical deletion.');
+  await supabase(`/rest/v1/photo_stations?id=eq.${OTHER}`,{method:'PATCH',body:{expires_at:new Date(Date.now()-1000).toISOString()}});
+  await assert.rejects(()=>perform(OTHER,'visitor',null,'availability'),{status:410});
+  await provision(otherOwner,'integration-test');
+  assert.equal((await perform(OTHER,'visitor',null,'availability')).online,false,'Expired camera restarts cleanly');
+  console.log('PASS: isolated cameras, idempotent registration, expiry/recovery, real Supabase upload/download, private bucket, RLS, competing captures, visitor isolation, physical deletion.');
 }finally{
   for(const visitor of visitors)await perform(STATION,'visitor',visitor,'delete').catch(()=>{});
-  await perform(STATION,'operator',owner,'heartbeat',{...beat,ready:false,people:0,person:null}).catch(()=>{});
+  for(const room of [STATION,OTHER])await supabase(`/rest/v1/photo_stations?id=eq.${room}`,{method:'DELETE'});
 }

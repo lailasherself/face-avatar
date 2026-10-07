@@ -15,5 +15,9 @@ Deno.serve(async request=>{
     if(deleted.error)return new Response('Cleanup registry failed',{status:503});
   }
   await client.from('photo_rate_limits').delete().lt('expires_at',new Date(Date.now()-86400000).toISOString());
+  // Temporary cameras expire after 48 hours without a heartbeat. Their photos
+  // have already expired after 24 hours; the permanent installation has no expiry.
+  const stations=await client.from('photo_stations').delete().lte('expires_at',now);
+  if(stations.error)return new Response('Station cleanup failed',{status:503});
   return Response.json({removed:paths.length});
 });

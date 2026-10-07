@@ -1,3 +1,8 @@
+function cameraToken(){
+  const bytes=crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
+}
+
 export async function photoConfiguration(){
   const local=['localhost','127.0.0.1'].includes(location.hostname);
   try{
@@ -9,12 +14,21 @@ export async function photoConfiguration(){
     if(fragment.has('photo-owner')){
       const owner=fragment.get('photo-owner');
       if(/^[\w-]{43}$/.test(owner))localStorage.setItem('alien-photo-owner',owner);
-      fragment.delete('photo-owner');history.replaceState(null,'',location.pathname+location.search+(fragment.size?'#'+fragment:''));
+      const search=new URLSearchParams(location.search);search.set('station',config.room);
+      fragment.delete('photo-owner');history.replaceState(null,'',location.pathname+'?'+search+(fragment.size?'#'+fragment:''));
+    }
+    const fixed=new URLSearchParams(location.search).get('station')===config.room;
+    if(config.testStations&&!fixed){
+      // A tab keeps its QR across reloads; other testers get unrelated cameras.
+      let owner=sessionStorage.getItem('alien-photo-test-owner');
+      if(!/^[\w-]{43}$/.test(owner||'')){owner=cameraToken();sessionStorage.setItem('alien-photo-test-owner',owner);}
+      const response=await fetch('/api/photos?action=provision',{method:'POST',headers:{'X-Face-Avatar':'photo',Authorization:`Bearer ${owner}`},signal:AbortSignal.timeout(10000)});
+      if(!response.ok)throw new Error('Photo station unavailable');
+      const station=await response.json();
+      return {...config,...station,owner,instance:cameraToken(),operator:true};
     }
     const owner=localStorage.getItem('alien-photo-owner');
-    const bytes=crypto.getRandomValues(new Uint8Array(32));
-    const instance=btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
-    return {...config,owner,instance,operator:!!owner};
+    return {...config,owner,instance:cameraToken(),operator:!!owner};
   }catch{return {enabled:false};}
 }
 

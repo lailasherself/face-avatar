@@ -30,7 +30,18 @@ const path=require('node:path');
     // Scene loading is a separate, optional check: the QR must be usable first.
     if(live&&process.env.VERIFY_SCENE==='1')await page.locator('#loading').waitFor({state:'hidden',timeout:90000});
     const phoneURL=await qr.getAttribute('href');
-    assert.equal(phoneURL,'https://face-avatar.vercel.app/photo.html?station=atl-downtown');
+    if(live){
+      assert.match(new URL(phoneURL).searchParams.get('station'),/^test-[a-f0-9]{32}$/);
+      assert.equal(new URL(phoneURL).origin,new URL(base).origin);
+      const other=await browser.newPage();
+      await other.addInitScript(()=>{navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Camera disabled','NotAllowedError');};});
+      await other.goto(`${base}/cockpit.html?view=ship&character=orbit&qa`);
+      const otherQR=other.locator('#spaceship-photo a');await otherQR.waitFor({state:'visible',timeout:30000});
+      assert.notEqual(await otherQR.getAttribute('href'),phoneURL,'Different browsers get different cameras');
+      await other.close();
+      await page.reload();await qr.waitFor({state:'visible',timeout:30000});
+      assert.equal(await qr.getAttribute('href'),phoneURL,'Reload keeps the same QR');
+    }else assert.equal(phoneURL,'https://face-avatar.vercel.app/photo.html?station=atl-downtown');
     assert.equal(await qr.locator('img').evaluate(img=>img.naturalWidth>100),true);
     if(!live){
       for(const state of [{online:false},{online:true,ready:true},{online:true,busy:true}]){
@@ -59,11 +70,11 @@ const path=require('node:path');
       await phone.goto(phoneURL);
       await phone.waitForFunction(()=>document.querySelector('#availability').textContent!=='Connecting to the window...');
       const availability=await phone.locator('#availability').textContent();
-      if(availability.includes('offline'))assert.equal(await phone.locator('#take').isDisabled(),true);
+      assert.equal(await phone.locator('#take').isDisabled(),true,'Denied camera cannot capture');
       await phone.screenshot({path:path.join(output,'live-phone.png')});
       console.log({phoneAvailability:availability});
     }
     assert.deepEqual(errors,[]);
-    console.log({live,permanentQRVisible:true,operatorPairingRequired:false,phoneURL,viewports:[1440,768,390],errors});
+    console.log({live,publicQRVisible:true,operatorPairingRequired:false,phoneURL,viewports:[1440,768,390],errors});
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

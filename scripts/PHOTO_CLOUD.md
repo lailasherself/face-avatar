@@ -1,6 +1,27 @@
 # Public QR Photos
 
-The permanent visitor URL is:
+## Team Browser Testing
+
+Open `https://face-avatar.vercel.app/cockpit.html?view=ship` on each camera laptop
+and allow camera access. Each tab automatically creates its own camera station and
+QR. Scan that screen's QR with a phone on any network, tap Take my photo, lower the
+phone, and face the laptop camera. Keep the laptop tab open and visible. No private
+operator link or shared Wi-Fi is required for team testing.
+
+The QR is stable across reloads in the same tab, but is not a permanent printed QR.
+Other browsers receive separate cameras and cannot trigger or retrieve each
+other's captures. Duplicated tabs may share browser session storage; open a fresh
+tab from the shared link instead. Closing the camera tab makes its QR offline.
+The QR remains visible if camera access is denied, but capture stays disabled.
+
+Test station owner credentials stay in sessionStorage, never in the QR. Temporary
+station metadata expires after 48 hours without camera heartbeats. Photos still
+expire after 24 hours. Allocation is idempotent, rate-limited, and capped at 64
+active test stations; total uploads are limited to 500 per 24-hour rate window.
+
+## Permanent Installation
+
+The reserved permanent visitor URL is:
 `https://face-avatar.vercel.app/photo.html?station=atl-downtown`
 
 Visitors use their own network. The active camera station sends heartbeats and
@@ -12,12 +33,15 @@ until the paired camera is ready. Viewing or scanning the QR needs no private li
 
 ## Camera Station
 
-The public website cannot claim the camera station. An operator opens the private
+The public website cannot claim the permanent camera station. An operator opens the private
 launch link, which stores a station credential in that browser and removes it from
 the address bar. Only one tab can operate the station at a time. Close the existing
 tab and wait 10 seconds before moving to another browser. Clear the
 `alien-photo-owner` localStorage key to unpair a browser. Do not share the operator
-link with visitors. Use the Spaceship tab for the visitor QR.
+link with visitors. Use the Spaceship tab for the visitor QR. The private launch
+fragment selects `?station=atl-downtown`; that explicit query also reuses an
+already-paired operator browser. Ordinary links ignore that pairing and create
+independent test cameras instead.
 
 On the provisioning Mac the private link is `.context/photo-station-launch.html`.
 The credential is also in macOS Keychain, service `face-avatar.photo-owner`.
@@ -54,8 +78,10 @@ At high event throughput monitor Supabase quotas and tune these bounds explicitl
 `node --test scripts/test_photo_cloud.mjs` tests state/auth/expiry transitions.
 `node scripts/test_photo_supabase.mjs` uses authenticated CLI access to the
 dedicated project for synthetic upload/download, competing captures, RLS,
-cross-visitor isolation and physical deletion/cleanup. Run only while the station
-is idle; it temporarily acquires the operator lease.
+cross-visitor/camera isolation and physical deletion/cleanup. It provisions its
+own temporary stations and never acquires the permanent station's operator lease.
+`node --test scripts/test_photo_configuration.mjs` checks registration, reload,
+permanent pairing, failure isolation, and unchanged local configuration.
 
 The browser test uses a public fixture and actual face inference. It is not a
 physical-visitor or ZED test. A staff member must validate framing and capture at
