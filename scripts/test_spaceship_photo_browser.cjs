@@ -80,8 +80,8 @@ const assert=require('node:assert/strict');
     assert.equal(await phone.locator('#preview').isVisible(),false,'Tracking loss cannot return a photo');
     const heartbeat=process.env.CLOUD_PHOTO_OPERATOR?'**/api/photos?action=heartbeat&*':'**/api/photo-operator/heartbeat';
     await installation.route(heartbeat,route=>route.abort());
-    await link.waitFor({state:'hidden',timeout:10000});
-    assert.equal(await installation.locator('#spaceship-photo p').textContent(),'Photo station offline');
+    await installation.waitForFunction(()=>document.querySelector('#spaceship-photo p').textContent==='Photo station offline');
+    assert.equal(await link.isVisible(),!!process.env.CLOUD_PHOTO_OPERATOR,'Permanent public QR stays visible offline; local-only QR hides');
     await installation.unroute(heartbeat);await link.waitFor({state:'visible'});
     for(const width of [390,768]){
       await installation.setViewportSize({width,height:900});await installation.waitForTimeout(500);
@@ -90,7 +90,7 @@ const assert=require('node:assert/strict');
       await installation.screenshot({path:path.join(output,`spaceship-${width}.png`)});
     }
     assert.deepEqual(errors,[]);
-    const report={actualFaceInference:true,physicalVisitorTested:false,phoneURL,image,errors,checks:['spaceship-only QR','real AR photo delivered to phone','countdown instructions','download','character lock','tracking loss cancels','offline QR hidden','390/768/1440 layout']};
+    const report={actualFaceInference:true,physicalVisitorTested:false,phoneURL,image,errors,checks:['spaceship-only QR','real AR photo delivered to phone','countdown instructions','download','character lock','tracking loss cancels','offline QR policy','390/768/1440 layout']};
     fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(report,null,2));console.log(report);
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

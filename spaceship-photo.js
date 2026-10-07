@@ -53,7 +53,8 @@ export class SpaceshipPhoto {
   setView(view){this.element.hidden=view!=='ship';}
   update({online=false,ready=false,busy=false}={}){
     this.lastState={online,ready,busy};
-    this.link.hidden=!online||!this.codeReady;this.hint.hidden=this.link.hidden;
+    // The public QR is permanent; camera availability must not hide its entry point.
+    this.link.hidden=!this.codeReady||(!online&&this.config.network!=='public');this.hint.hidden=this.link.hidden;
     this.status.textContent=!this.config.enabled||!online?'Photo station offline':!this.config.phoneURL?'Phone connection not configured':this.config.demo?'Scan for a sample photo':busy?'Photo in progress':ready?'Scan. Pose. Save.':'Scan, then face the camera';
   }
 }

@@ -6,6 +6,9 @@ The permanent visitor URL is:
 Visitors use their own network. The active camera station sends heartbeats and
 captures to the public HTTPS API; no inbound camera port or public tunnel is needed.
 The QR contains no operator credential and never links to a public photo gallery.
+The permanent QR stays visible on the Spaceship tab even while the camera is
+offline. Its status identifies the offline station, and the phone disables capture
+until the paired camera is ready. Viewing or scanning the QR needs no private link.
 
 ## Camera Station
 
