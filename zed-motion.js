@@ -1,5 +1,9 @@
-const valid=p=>p&&Array.isArray(p.position)&&p.position.length===3&&p.position.every(Number.isFinite)&&
-  Number.isFinite(p.confidence)&&p.confidence>=.6&&Array.isArray(p.image)&&p.image.length===2&&p.image.every(v=>Number.isFinite(v)&&v>=0&&v<=1);
+const validAt=min=>p=>p&&Array.isArray(p.position)&&p.position.length===3&&p.position.every(Number.isFinite)&&
+  Number.isFinite(p.confidence)&&p.confidence>=min&&Array.isArray(p.image)&&p.image.length===2&&p.image.every(v=>Number.isFinite(v)&&v>=0&&v<=1);
+// Arm directions need confident joints. Gesture matching (wrist crops and the
+// raised-palm body side) accepts lower-confidence wrists: the FAST body model
+// reports a raised arm's wrist around 40-70%, so a 60% cut made it flicker.
+const valid=validAt(.6),validHint=validAt(.3);
 
 export function zedMotion(packet){
   if(packet?.version!==1||packet.coordinates!=='RIGHT_HANDED_Y_UP'||packet.reference!=='CAMERA'||packet.units!=='meters')throw new Error('Unsupported ZED coordinate contract');
@@ -15,8 +19,8 @@ export function zedMotion(packet){
   };
   for(const [human,avatar,indices] of [['RIGHT','L',[12,14,16]],['LEFT','R',[11,13,15]]]){
     const chain=['SHOULDER','ELBOW','WRIST','HAND'].map(name=>joints[human+'_'+name]);
-    if(valid(chain[3]))handHints[avatar]={x:chain[3].image[0],y:chain[3].image[1],visibility:chain[3].confidence,presence:chain[3].confidence};
-    chain.slice(0,3).forEach((p,i)=>{if(valid(p))poseLandmarks[indices[i]]={x:p.image[0],y:p.image[1],z:0,visibility:p.confidence,presence:p.confidence};});
+    if(validHint(chain[3]))handHints[avatar]={x:chain[3].image[0],y:chain[3].image[1],visibility:chain[3].confidence,presence:chain[3].confidence};
+    chain.slice(0,3).forEach((p,i)=>{if(validHint(p))poseLandmarks[indices[i]]={x:p.image[0],y:p.image[1],z:0,visibility:p.confidence,presence:p.confidence};});
     const upper=direction(chain[0],chain[1]),lower=direction(chain[1],chain[2]);
     if(upper&&lower)arms[avatar]={upper,lower,hand:direction(chain[2],chain[3])};
   }
