@@ -6,7 +6,8 @@
   "outputDirectory": "dist",
   "redirects": [
     { "source": "/", "destination": "/cockpit.html", "permanent": false },
-    { "source": "/index.html", "destination": "/cockpit.html", "permanent": false }
+    { "source": "/index.html", "destination": "/cockpit.html", "permanent": false },
+    { "source": "/you-are-out-of-this-world", "destination": "/photo.html?station=atl-downtown", "permanent": false }
   ],
   "headers": [
     {
