@@ -57,6 +57,11 @@ export class FleetStage {
     rig.visible=index===this.selected;preview.visible=!this.solo&&!rig.visible;
     this.layout(true);
   }
+  remove(index){
+    const e=this.entries.get(index);if(!e)return;
+    this.scene.remove(e.rig);this.backdrop?.remove(e.preview);this.entries.delete(index);
+    this.layout(true);
+  }
   select(index,count){
     this.selected=index;this.count=count;
     for(const [i,e] of this.entries){e.rig.visible=i===index;e.preview.visible=!this.solo&&i!==index;}
