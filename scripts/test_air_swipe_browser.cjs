@@ -1,7 +1,8 @@
 const {chromium}=require('playwright');
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
-const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).characters[1].id;
+const characters=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).characters.map(c=>c.id);
+const nextCharacter=characters[1];
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  try{
@@ -90,6 +91,12 @@ const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).cha
   await hold(550);
   for(const x of [500,450,400,350,300]){await sample(x);await page.waitForTimeout(30);}
   await page.waitForFunction(()=>fleetQA.character==='orbit',null,{timeout:15000});
+  // Exercise every rig and wrap twice, including repeated gestures without lowering.
+  for(let turn=1;turn<=characters.length*2;turn++){
+   await hold(300);
+   for(const x of [350,400,450,500,550]){await sample(x);await page.waitForTimeout(30);}
+   await page.waitForFunction(id=>fleetQA.character===id,characters[turn%characters.length],{timeout:15000});
+  }
   assert.equal(await page.evaluate(()=>cameraRequests),1);
   assert.equal(await page.locator('header').isVisible(),false);
   assert.equal(await page.locator('footer').isVisible(),false);
@@ -99,6 +106,6 @@ const nextCharacter=JSON.parse(fs.readFileSync('assets/3dai/manifest.json')).cha
   assert.deepEqual(errors,[]);
   fs.writeFileSync('.context/qa/air-swipe.json',JSON.stringify({samples,errors,realHandModel:true,simulatedBodyHints:true,physicalCameraTested:false},null,2));
   await page.screenshot({path:'.context/qa/swipe-complete.png'});
-  console.log('PASS real hand-model replay switches Orbit -> '+nextCharacter+' -> Orbit; missed detection recovery, resting hand, recoil guard and one camera');
+  console.log('PASS real hand-model replay across all '+characters.length+' characters twice; wraparound, missed detection recovery, resting hand, recoil guard and one camera');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
