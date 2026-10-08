@@ -15,7 +15,7 @@ const count=require('../assets/3dai/manifest.json').characters.length;
   await page.route('**/fleet.js',async route=>{
    const response=await route.fetch();
    await route.fulfill({response,body:await response.text()+`
-window.stageTest={select:selectCharacter,staticState:()=>[...fleetStage.entries].filter(([i])=>i!==currentIndex).map(([i,e])=>({i,visible:e.rig.visible,position:e.rig.position.toArray(),previewMeshes:e.preview.children.length})),expression:()=>{target.jawOpen=.7;target.tongueOut=.8;demo=true;demoStart=performance.now();},pixels:()=>{
+window.stageTest={select:selectCharacter,delayLoad:index=>{const original=characterLoads.get(index);let release;characterLoads.set(index,new Promise(resolve=>{release=()=>resolve(original);}));return window.releaseLoad=()=>{characterLoads.set(index,original);release();};},staticState:()=>[...fleetStage.entries].filter(([i])=>i!==currentIndex).map(([i,e])=>({i,visible:e.rig.visible,position:e.rig.position.toArray(),previewMeshes:e.preview.children.length})),expression:()=>{target.jawOpen=.7;target.tongueOut=.8;demo=true;demoStart=performance.now();},pixels:()=>{
  const gl=renderer.getContext(),w=gl.drawingBufferWidth,h=gl.drawingBufferHeight;
  const capture=()=>{renderer.render(scene,camera);const p=new Uint8Array(w*h*4);gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,p);return p;};
  const live=capture();current.gltf.scene.visible=false;const empty=capture();current.gltf.scene.visible=true;renderer.render(scene,camera);
@@ -65,6 +65,14 @@ window.stageTest={select:selectCharacter,staticState:()=>[...fleetStage.entries]
   assert.equal(requests.length,initialRequests,'switching never downloads a rig again');
   await page.evaluate(()=>Promise.all([stageTest.select(1),stageTest.select(2),stageTest.select(0)]));
   assert.equal(await page.evaluate(()=>fleetQA.character),'orbit','latest selection wins');
+  await page.evaluate(()=>{stageTest.delayLoad(1);});
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(()=>fleetQA.character==='nebula');
+  await page.evaluate(()=>releaseLoad());
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(()=>fleetQA.character),'nebula','navigation while loading accumulates and stale load cannot revert it');
+  await page.evaluate(()=>stageTest.select(0));
   await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>fleetQA.character!=='orbit');
   const touch=await page.context().newCDPSession(page);
   await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:80,y:400}]});

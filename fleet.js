@@ -85,7 +85,7 @@ const headEffect=arMode||photoEnabled&&!photoDemo?new AlienHeadEffect(renderer,s
 function photoPerson(){return zedMode?zedSource?.personId==null?null:`${zedSource.session}:${zedSource.personId}`:'webcam';}
 renderer.domElement.addEventListener('webglcontextrestored',()=>fleetStage.layout(true));
 const characterLoads=new Map();
-let manifest, current, currentIndex=0, requestId=0, bodyPose='Standing';
+let manifest, current, currentIndex=0, requestedIndex=0, requestId=0, bodyPose='Standing';
 let stream=null, landmarker=null, cameraRequest=0, lastVideoTime=-1, lastFaceTime=0;
 let cameraStarting=false,retryTimer=null,cameraWanted=!photoDemo,lastDetectionTime=0;
 let handTracker=null,tongueTracker=null;
@@ -215,15 +215,23 @@ function loadCharacter(index){
   return pending;
 }
 async function preloadCharacters(){
-  for(let i=0;i<manifest.characters.length;i++){
+  // Load the characters a swipe can reach next before the rest of the roster, and
+  // re-evaluate after every load so a browsing visitor rarely hits "Loading".
+  const count=manifest.characters.length;
+  for(;;){
     await new Promise(resolve=>setTimeout(resolve,150));
-    try{await loadCharacter(i);}catch(error){console.warn(`Background character unavailable: ${manifest.characters[i].name}`,error);}
+    const pending=[...Array(count).keys()].filter(i=>!characterLoads.has(i));
+    if(!pending.length)return;
+    const ahead=i=>(i-currentIndex+count)%count,rank=i=>Math.min(ahead(i)*2-1,(count-ahead(i))*2);
+    const next=pending.sort((a,b)=>rank(a)-rank(b))[0];
+    try{await loadCharacter(next);}catch(error){console.warn(`Background character unavailable: ${manifest.characters[next].name}`,error);}
   }
 }
 async function selectCharacter(index){
   if(photoBooth?.locked||arControls?.locked)return;
   if(!manifest)return;
-  index=(index+manifest.characters.length)%manifest.characters.length;
+  index=((index%manifest.characters.length)+manifest.characters.length)%manifest.characters.length;
+  requestedIndex=index;
   const generation=++requestId;
   const info=manifest.characters[index];
   $('loading').hidden=false;$('loading').textContent=`Loading ${info.name}...`;
@@ -247,7 +255,10 @@ async function selectCharacter(index){
     if(button.offsetLeft<roster.scrollLeft||button.offsetLeft+button.offsetWidth>roster.scrollLeft+roster.clientWidth)roster.scrollTo({left:button.offsetLeft-roster.offsetLeft-roster.clientWidth/2+button.offsetWidth/2,behavior:'smooth'});
     const url=new URL(location);url.searchParams.set('character',info.id);history.replaceState(null,'',url);
     notice('');
-  }catch(error){console.error(error);notice(`Could not load ${info.name}. ${error.message}`);}
+  }catch(error){
+    if(generation!==requestId)return;
+    requestedIndex=currentIndex;console.error(error);notice(`Could not load ${info.name}. ${error.message}`);
+  }
   finally{if(generation===requestId)$('loading').hidden=true;}
 }
 
@@ -347,7 +358,7 @@ async function startCamera(){
     status('Looking for a face');
     $('camera-retry').hidden=true;
     handTracker=new AirSwipeTracker(direction=>{
-      if(stream&&$('loading').hidden)selectCharacter(currentIndex+direction);
+      if(stream)selectCharacter(requestedIndex+direction);
     },error=>{
       console.warn('Motion tracking unavailable:',error);
       notice('Motion tracking unavailable. Retry camera.');$('camera-retry').hidden=false;
@@ -466,8 +477,8 @@ $('channel-strength').oninput=()=>{
   if(cameraWanted)stopCamera();demo=false;updateDemoButton();target[$('channel').value]=value;syncSliders();
 };
 $('reset-expression').onclick=resetExpression;
-$('previous').onclick=()=>selectCharacter(currentIndex-1);
-$('next').onclick=()=>selectCharacter(currentIndex+1);
+$('previous').onclick=()=>selectCharacter(requestedIndex-1);
+$('next').onclick=()=>selectCharacter(requestedIndex+1);
 $('camera-toggle').onclick=()=>stream?stopCamera():startCamera();
 $('camera-framing-toggle').onclick=()=>{$('camera-framing').showModal();framing.draw(performance.now());};
 $('close-framing').onclick=()=>$('camera-framing').close();
@@ -492,11 +503,11 @@ renderer.domElement.addEventListener('pointerdown',e=>{if(e.pointerType==='touch
 renderer.domElement.addEventListener('pointerup',e=>{
   if(!swipe||e.pointerId!==swipe.id)return;
   const dx=e.clientX-swipe.x,dy=e.clientY-swipe.y;
-  if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.5&&performance.now()-swipe.time<700)selectCharacter(currentIndex+(dx<0?1:-1));
+  if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.5&&performance.now()-swipe.time<700)selectCharacter(requestedIndex+(dx<0?1:-1));
   swipe=null;
 });
 renderer.domElement.addEventListener('pointercancel',()=>{swipe=null;});
-addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;if(e.key==='ArrowLeft'){e.preventDefault();selectCharacter(currentIndex-1);}if(e.key==='ArrowRight'){e.preventDefault();selectCharacter(currentIndex+1);}if(e.key==='Escape'){$('expression-panel').classList.remove('open');$('panel-toggle').setAttribute('aria-expanded','false');}});
+addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;if(e.key==='ArrowLeft'){e.preventDefault();selectCharacter(requestedIndex-1);}if(e.key==='ArrowRight'){e.preventDefault();selectCharacter(requestedIndex+1);}if(e.key==='Escape'){$('expression-panel').classList.remove('open');$('panel-toggle').setAttribute('aria-expanded','false');}});
 addEventListener('pagehide',()=>{stopCamera();landmarker?.close();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){if(stream||cameraStarting)stopCamera(true);}
@@ -560,7 +571,7 @@ try{
   if(arMode){
     const {ARPhotoControls}=await import('./ar-photo-controls.js');
     arControls=new ARPhotoControls({canvas:headEffect.canvas,
-      previous:()=>selectCharacter(currentIndex-1),next:()=>selectCharacter(currentIndex+1),retry:startCamera,
+      previous:()=>selectCharacter(requestedIndex-1),next:()=>selectCharacter(requestedIndex+1),retry:startCamera,
       capture:()=>({canvas:brandAlienPhoto(headEffect.snapshot(current,photoPerson()),current.info.name),name:current.info.name})});
   }
   if(photoEnabled){

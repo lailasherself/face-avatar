@@ -32,14 +32,17 @@ export class PhotoBooth {
   async makePhoto(job,person,character){
     try{
       const valid=()=>{const s=this.state();return s.ready&&s.people===1&&s.person===person&&s.character===character;};
-      if(!valid())throw new Error('Visitor moved away');
       // Brief inference gaps may pause the shutter, but never permit an old frame.
-      const deadline=performance.now()+1000;
-      while(!this.captureReady()){
-        if(performance.now()>deadline||!valid())throw new Error('Face tracking is unavailable');
-        await new Promise(resolve=>setTimeout(resolve,30));
-      }
-      if(!valid())throw new Error('Visitor moved away');
+      const waitForTracking=async()=>{
+        const deadline=performance.now()+1500;
+        while(!valid()||!this.captureReady()){
+          const s=this.state();
+          if(s.people>1||(s.person!==null&&s.person!==person)||s.character!==character)throw new Error('Visitor moved away');
+          if(performance.now()>=deadline)throw new Error('Face tracking is unavailable');
+          await new Promise(resolve=>setTimeout(resolve,30));
+        }
+      };
+      await waitForTracking();
       const source=this.capture();let frame=source.composite;
       if(this.demo){
         frame=document.createElement('canvas');frame.width=1200;frame.height=796;
@@ -55,7 +58,7 @@ export class PhotoBooth {
         for(const quality of [.82,.72,.62,.52]){if(image.size<=700*1024)break;image=await encode(quality);}
         if(image.size>700*1024)throw new Error('Photo is too large. Please try again.');
       }
-      if(!valid())throw new Error('Visitor moved away');
+      await waitForTracking();
       await this.request('complete',image,job);
     }catch(error){await this.request('fail',{job}).catch(()=>{});console.warn('Photo capture:',error.message);}
   }

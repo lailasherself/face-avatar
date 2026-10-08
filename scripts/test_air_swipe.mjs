@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AirSwipeDetector,openPalm} from '../air-swipe.js';
+import {AirSwipeDetector,AirSwipeTracker,openPalm} from '../air-swipe.js';
 import {armDirections} from '../body-motion.js';
 import {hand,motionFrame,bodyPose} from './motion-fixtures.mjs';
 
@@ -55,6 +55,29 @@ function hold(d,x=.3,time=0){
 function sweep(d,{start=.3,dx=.32,dy=0,time=800,step=80,closed=false}={}){
   return Array.from({length:5},(_,i)=>d.update(motionFrame({x:start+dx*i/4,y:.3+dy*i/4,closed}),time+i*step));
 }
+test('delayed hand inference still swipes repeatedly; stale and reordered samples do not',t=>{
+  const original=globalThis.Worker;
+  globalThis.Worker=class {postMessage(){} terminate(){}};
+  let now=10000;
+  t.mock.method(performance,'now',()=>now);
+  const events=[],tracker=new AirSwipeTracker(direction=>events.push(direction),error=>{throw error;});
+  t.after(()=>{tracker.stop();globalThis.Worker=original;});
+  const send=(x,time,age=350)=>{
+    now=time+age;
+    tracker.worker.onmessage({data:{type:'result',time,result:motionFrame({x})}});
+  };
+  for(let turn=0;turn<14;turn++){
+    const start=10000+turn*3000;
+    for(let t=0;t<=720;t+=80)send(.3,start+t);
+    for(let i=0;i<5;i++)send(.3+.08*i,start+800+i*80);
+  }
+  assert.deepEqual(events,Array(14).fill(1));
+  const accepted=tracker.lastAcceptedTime;
+  send(.3,accepted+80,600);
+  send(.3,accepted-80);
+  assert.equal(tracker.lastAcceptedTime,accepted);
+  assert.equal(tracker.droppedFrames,2);
+});
 test('a lowered second hand does not prevent a deliberate raised-palm swipe',()=>{
   const d=new AirSwipeDetector();
   const frame=x=>{
@@ -150,18 +173,31 @@ test('an open palm works without any body pose, and pose flicker does not restar
   for(let time=0;time<=800;time+=80)low.update(motionFrame({unmatched:true,y:.7}),time);
   assert.equal(low.state,'idle');
 });
-test('recoil and continued hold cannot cause repeated swaps; release rearms',()=>{
+test('recoil and continued hold cannot cause repeated swaps; a fresh still hold or a release rearms',()=>{
   const d=new AirSwipeDetector();hold(d);sweep(d);
+  // Recoil back toward the start during the cooldown never switches.
   assert(sweep(d,{start:.62,dx:-.32,time:1200}).every(v=>v===0));
-  for(let time=1600;time<4000;time+=80)assert.equal(d.update(motionFrame(),time),0);
   assert.notEqual(d.state,'armed');
-  d.update({landmarks:[]},4000);d.update({landmarks:[]},4300);
-  hold(d,.3,4400);assert.equal(sweep(d,{time:5200}).filter(Boolean).length,1);
+  // Holding still after the cooldown re-arms without a release but never swaps by itself.
+  for(let time=1600;time<4000;time+=80)assert.equal(d.update(motionFrame(),time),0);
+  assert.equal(d.state,'armed');
+  assert.equal(sweep(d,{time:4000}).filter(Boolean).length,1);
+  // A release followed by a new hold also works.
+  d.update({landmarks:[]},4400);d.update({landmarks:[]},4700);
+  hold(d,.3,4800);assert.equal(sweep(d,{time:5600}).filter(Boolean).length,1);
+});
+test('drifting the hand back slowly after a switch does not re-arm until it is still again',()=>{
+  const d=new AirSwipeDetector();hold(d);sweep(d);
+  // Slow drift back across the frame, each sample moving more than the stillness radius.
+  let x=.62;const events=[];
+  for(let time=1900;time<3400;time+=80){x-=.07;events.push(d.update(motionFrame({x}),time));}
+  assert(events.every(v=>v===0));assert.notEqual(d.state,'armed');
 });
 test('readiness expires and tracking gaps or identity changes cancel it',()=>{
   const expired=new AirSwipeDetector();hold(expired);
-  for(let time=800;time<3000;time+=80)expired.update(motionFrame(),time);
+  for(let time=800;time<=2480;time+=80)expired.update(motionFrame(),time);
   assert.notEqual(expired.state,'armed');
+  expired.update(motionFrame(),2560);assert.equal(expired.state,'holding','expiry requires a fresh hold');
   for(const gap of [true,false]){
     const d=new AirSwipeDetector();hold(d);
     const frame=motionFrame(gap?{}:{wrist:15});

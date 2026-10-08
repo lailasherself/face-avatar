@@ -1,6 +1,6 @@
 import {createHash, randomBytes, timingSafeEqual} from 'node:crypto';
 
-export const PHOTO_TTL=24*60*60*1000,MAX_IMAGE=700*1024,MAX_SESSIONS=256;
+export const PHOTO_TTL=24*60*60*1000,MAX_IMAGE=700*1024,MAX_SESSIONS=256,TRACKING_GRACE=1500;
 export const token=()=>randomBytes(32).toString('base64url');
 export const hash=value=>createHash('sha256').update(value).digest('hex');
 export const characters=Object.fromEntries(['orbit','cosmic','nebula','kudzu','clay','summer','glass'].map(id=>[id,{
@@ -49,11 +49,16 @@ export function transition(room,role,secret,action,data={},now=Date.now()){
       room.instance=data.instance;room.operator={ready:data.ready,people:data.people,person:data.person,character:data.character};room.operatorAt=now;
       const s=room.sessions[room.active];
       if(s){
-        if(!ready(room,now)||s.person!==data.person||s.character!==data.character)cancelActive(room,'We lost your position. Face the camera and try again.');
+        const changed=data.people>1||(data.person!==null&&s.person!==data.person)||s.character!==data.character;
+        const tracking=ready(room,now);
+        if(tracking)s.trackingLostAt=null;
+        else s.trackingLostAt??=now;
+        if(changed||(!tracking&&now-s.trackingLostAt>=TRACKING_GRACE))cancelActive(room,'We lost your position. Face the camera and try again.');
         else {
           // Start the five seconds only after the camera acknowledges the request.
-          if(s.state==='arming'){s.state='countdown';s.deadline=now+5000;}
-          else if(now>=s.deadline)s.state='processing';
+          // A brief occlusion may delay the shutter, never authorize a stale frame.
+          if(tracking&&s.state==='arming'){s.state='countdown';s.deadline=now+5000;}
+          else if(tracking&&now>=s.deadline)s.state='processing';
           result.response={state:s.state,job:s.job,remaining:Math.max(0,(s.deadline-now)/1000),demo:false};
         }
       }
@@ -85,7 +90,7 @@ export function transition(room,role,secret,action,data={},now=Date.now()){
       if(!ready(room,now))fail(409,'Face the camera. One person at a time.');
       if(now-s.lastStart<3000)fail(429,'Please wait a moment before retaking.');
       if(s.image)remove.push(s.image);
-      Object.assign(s,{state:'arming',armedAt:now,deadline:null,expires:now+600000,message:'',person:room.operator.person,character:room.operator.character,job:token(),lastStart:now,image:false});
+      Object.assign(s,{state:'arming',armedAt:now,deadline:null,trackingLostAt:null,expires:now+600000,message:'',person:room.operator.person,character:room.operator.character,job:token(),lastStart:now,image:false});
       room.active=id;
     }
   }else if(action==='cancel'){

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {newRoom,transition,token,hash,PHOTO_TTL} from '../server/photo-state.mjs';
+import {newRoom,transition,token,hash,PHOTO_TTL,TRACKING_GRACE} from '../server/photo-state.mjs';
 
 function fixture(){
   const owner=token(),instance=token(),room=newRoom('atl-downtown',owner),now=100000;
@@ -47,12 +47,40 @@ test('expired access denied; cleanup discovers expired paths',()=>{
   assert.deepEqual(cleaned.remove,['test.jpg']);
   assert.throws(()=>transition(f.room,'visitor',f.visitor,'image',{},f.now+5003+PHOTO_TTL),{status:410});
 });
-test('lost tracking or changed person cancels capture',()=>{
-  for(const change of [{ready:false},{person:'other'},{people:2},{character:'cosmic'}]){
+test('changed person, crowd or character cancels capture immediately',()=>{
+  for(const change of [{person:'other'},{people:2},{character:'cosmic'}]){
     const f=fixture();transition(f.room,'visitor',f.visitor,'start',{},f.now);
     transition(f.room,'operator',f.owner,'heartbeat',{...f.beat,...change},f.now+1);
     assert.equal(f.room.active,null);assert.equal(f.room.sessions[hash(f.visitor)].state,'error');
   }
+});
+test('brief arm/face occlusion preserves countdown, but shutter waits for fresh tracking',()=>{
+  for(const change of [{ready:false},{ready:false,people:0},{ready:false,people:0,person:null}]){
+    const f=fixture(),beat=(data,offset)=>transition(f.room,'operator',f.owner,'heartbeat',{...f.beat,...data},f.now+offset).response;
+    transition(f.room,'visitor',f.visitor,'start',{},f.now);
+    beat({},0);
+    assert.equal(beat(change,4800).state,'countdown');
+    assert.equal(beat(change,5200).state,'countdown');
+    assert.equal(beat({},5500).state,'processing');
+    assert.equal(f.room.sessions[hash(f.visitor)].deadline,f.now+5000,'recovery must not restart the countdown');
+  }
+});
+test('persistent loss cancels and cannot upload; recovered tracking resets the grace period',()=>{
+  const f=fixture(),beat=(ready,offset)=>transition(f.room,'operator',f.owner,'heartbeat',{...f.beat,ready},f.now+offset).response;
+  transition(f.room,'visitor',f.visitor,'start',{},f.now);beat(true,0);
+  beat(false,100);beat(true,500);
+  assert.equal(beat(false,2000).state,'countdown');
+  const job=f.room.sessions[hash(f.visitor)].job;
+  assert.equal(beat(false,2000+TRACKING_GRACE).state,'idle');
+  assert.equal(f.room.sessions[hash(f.visitor)].state,'error');
+  assert.throws(()=>transition(f.room,'operator',f.owner,'complete',{instance:f.instance,job,imagePath:'test.jpg'},f.now+4000),{status:409});
+});
+test('capture cannot complete during a brief tracking gap',()=>{
+  const f=fixture();transition(f.room,'visitor',f.visitor,'start',{},f.now);
+  transition(f.room,'operator',f.owner,'heartbeat',f.beat,f.now);
+  const command=transition(f.room,'operator',f.owner,'heartbeat',f.beat,f.now+5000).response;
+  transition(f.room,'operator',f.owner,'heartbeat',{...f.beat,ready:false},f.now+5100);
+  assert.throws(()=>transition(f.room,'operator',f.owner,'complete',{instance:f.instance,job:command.job,imagePath:'test.jpg'},f.now+5200),{status:409});
 });
 test('retake revokes the old photo before another countdown',()=>{
   const f=fixture();capture(f);

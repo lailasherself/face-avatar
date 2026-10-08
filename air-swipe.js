@@ -12,6 +12,9 @@ const HOLD_GAP_PAUSE_MS=120;
 // frame on a slow kiosk (hand inference ~150 ms) is a 300 ms gap, so 240 ms was
 // cancelling real swipes mid-motion.
 const TRACKING_GRACE_MS=400;
+// Pose + hand inference can exceed 250 ms under rendering load. Gesture samples
+// retain capture timestamps; animation independently rejects samples over 400 ms.
+const GESTURE_MAX_AGE_MS=500;
 // A release (palm closes, hand drops, second palm appears) must persist this long
 // before it cancels. Motion blur during a fast swipe closes the detected palm for
 // a frame or two; a visitor lowering their arm stays lowered far longer.
@@ -129,9 +132,21 @@ export class AirSwipeDetector {
     this.previousSeen=time;
     this.identity=identity;
     if(this.latched){
-      this.state='cooldown';this.progress=0;return 0;
+      // Recoil right after a switch is motion, so it never re-arms. Once the
+      // cooldown ends, a fresh still hold re-arms without the visitor having to
+      // drop the hand: hold, swipe, hold, swipe.
+      if(time<this.cooldownUntil){this.history=[];this.still=null;this.state='cooldown';this.progress=0;return 0;}
+      if(!this.still||distance(point,this.still)>.06)this.still={...point,time};
+      this.progress=Math.min(1,(time-this.still.time)/HOLD_MS);this.state='holding';
+      if(this.progress<1)return 0;
+      this.latched=false;this.armedUntil=time+2000;this.history=[];
     }
-    if(time<this.cooldownUntil){this.history=[];this.state='cooldown';return 0;}
+    if(time<this.cooldownUntil){
+      // After a confirmed release, count the new hold during the cooldown.
+      // Otherwise a visitor can finish pausing before we even start the timer.
+      if(!this.still||distance(point,this.still)>.06)this.still={...point,time};
+      this.history=[];this.state='cooldown';return 0;
+    }
     if(!this.armedUntil){
       if(!this.still||distance(point,this.still)>.06)this.still={...point,time};
       this.progress=Math.min(1,(time-this.still.time)/HOLD_MS);this.state='holding';
@@ -139,7 +154,7 @@ export class AirSwipeDetector {
       this.armedUntil=time+2000;this.history=[];
     }
     if(time>this.armedUntil){
-      this.armedUntil=0;this.latched=true;this.progress=0;this.state='idle';return 0;
+      this.armedUntil=0;this.latched=true;this.still=null;this.progress=0;this.state='idle';return 0;
     }
     this.state='armed';this.progress=1;
     const previous=this.history.at(-1);
@@ -198,9 +213,9 @@ export class AirSwipeTracker {
         this.frames++;
         const age=now-data.time;
         Object.assign(this.handDiagnostics,data.result.handDiagnostics,{ageMs:age});
-        if(!Number.isFinite(data.time)||data.time<=this.lastAcceptedTime||data.time>now||now-data.time>250){
-          this.handDiagnostics.status=age>250?'late':'out-of-order';
-          if(age>250)this.handDiagnostics.lateFrames++;
+        if(!Number.isFinite(data.time)||data.time<=this.lastAcceptedTime||data.time>now||age>GESTURE_MAX_AGE_MS){
+          this.handDiagnostics.status=age>GESTURE_MAX_AGE_MS?'late':'out-of-order';
+          if(age>GESTURE_MAX_AGE_MS)this.handDiagnostics.lateFrames++;
           this.droppedFrames++;return;
         }
         const detected=data.result.landmarks?.length||0,matched=Object.keys(trackedFingerCurls(data.result)).length;
