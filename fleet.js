@@ -84,7 +84,7 @@ const fleetStage=new FleetStage(scene,camera,{solo:!setupMode});
 const headEffect=arMode||photoEnabled&&!photoDemo?new AlienHeadEffect(renderer,scene):null;
 function photoPerson(){return zedMode?zedSource?.personId==null?null:`${zedSource.session}:${zedSource.personId}`:'webcam';}
 renderer.domElement.addEventListener('webglcontextrestored',()=>fleetStage.layout(true));
-const characterLoads=new Map();
+const characterLoads=new Map(),characterRecords=new Map();
 let manifest, current, currentIndex=0, requestedIndex=0, requestId=0, bodyPose='Standing';
 let stream=null, landmarker=null, cameraRequest=0, lastVideoTime=-1, lastFaceTime=0;
 let cameraStarting=false,retryTimer=null,cameraWanted=!photoDemo,lastDetectionTime=0;
@@ -189,6 +189,7 @@ function preparePose(record,name){
   record.collisions.update();record.arms.captureNeutral();
   record.fingers=new FingerRetargeter(record.gltf.scene);record.pose=name;
 }
+const leanRoster=zedMode&&params.get('preload')!=='all';
 function loadCharacter(index){
   if(characterLoads.has(index))return characterLoads.get(index);
   const pending=(async()=>{
@@ -207,22 +208,38 @@ function loadCharacter(index){
       if(o.isBone){rest.push([o,o.position.clone(),o.quaternion.clone(),o.scale.clone()]);if(o.name==='Head')head=o;}
     });
     const record={gltf,info,meshes,head,rest,mixer:new THREE.AnimationMixer(gltf.scene),correctives:new PoseCorrectives(gltf.scene,gltf.animations)};
-    preparePose(record,'Standing');fleetStage.add(index,gltf.scene);
+    preparePose(record,'Standing');fleetStage.add(index,gltf.scene);characterRecords.set(index,record);
     return record;
   })();
   characterLoads.set(index,pending);
   pending.catch(()=>characterLoads.delete(index));
   return pending;
 }
+function disposeCharacter(index){
+  // Lean roster: free a rig the installation no longer needs so it never swaps.
+  const record=characterRecords.get(index);
+  if(!record||index===currentIndex||index===requestedIndex)return;
+  characterRecords.delete(index);characterLoads.delete(index);fleetStage.remove(index);
+  record.mixer.stopAllAction();record.collisions?.dispose();
+  record.gltf.scene.traverse(o=>{
+    if(!o.isMesh)return;o.geometry?.dispose();
+    for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const v of Object.values(m))if(v?.isTexture)v.dispose();m.dispose();}
+  });
+}
 async function preloadCharacters(){
   // Load the characters a swipe can reach next before the rest of the roster, and
   // re-evaluate after every load so a browsing visitor rarely hits "Loading".
+  // On the lean roster (the memory-limited ZED installation) only the current
+  // alien and its two swipe neighbours stay resident; the rest are freed.
   const count=manifest.characters.length;
   for(;;){
     await new Promise(resolve=>setTimeout(resolve,150));
-    const pending=[...Array(count).keys()].filter(i=>!characterLoads.has(i));
-    if(!pending.length)return;
     const ahead=i=>(i-currentIndex+count)%count,rank=i=>Math.min(ahead(i)*2-1,(count-ahead(i))*2);
+    const all=[...Array(count).keys()];
+    const wanted=leanRoster?new Set([currentIndex,requestedIndex,(currentIndex+1)%count,(currentIndex-1+count)%count]):new Set(all);
+    if(leanRoster)for(const i of [...characterRecords.keys()])if(!wanted.has(i))disposeCharacter(i);
+    const pending=all.filter(i=>wanted.has(i)&&!characterLoads.has(i));
+    if(!pending.length){if(leanRoster)continue;return;}
     const next=pending.sort((a,b)=>rank(a)-rank(b))[0];
     try{await loadCharacter(next);}catch(error){console.warn(`Background character unavailable: ${manifest.characters[next].name}`,error);}
   }
