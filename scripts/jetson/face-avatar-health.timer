@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Face Avatar health check every minute
+
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=60
+AccuracySec=5
+Unit=face-avatar-health.service
+
+[Install]
+WantedBy=timers.target

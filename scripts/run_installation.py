@@ -46,6 +46,27 @@ def find_browser(explicit=None):
         if found:return found
     raise RuntimeError('Install Chrome or Chromium, or pass --browser with its executable path.')
 
+STARTED_AT=time.monotonic()
+
+def installation_health(server):
+    """Status of this launcher: ZED capture, photo cloud transport and version."""
+    capture=getattr(server,'zed_capture',None)
+    zed=None
+    if capture is not None:
+        thread=getattr(capture,'thread',None)
+        latest=getattr(capture,'latest',None)
+        age=None
+        if latest:
+            try:age=round((time.monotonic()-latest[2])*1000)
+            except (TypeError,IndexError):age=None
+        zed={'running':bool(thread and thread.is_alive()),'error':getattr(capture,'error',None),
+             'session':getattr(capture,'session',None),'frameAgeMs':age,
+             'peopleCount':(latest[0].get('peopleCount') if latest and isinstance(latest[0],dict) else None),
+             'idleSeconds':round(time.monotonic()-capture.last_request) if getattr(capture,'last_request',0) else None}
+    cloud=getattr(server,'photo_cloud',None)
+    return {'ok':True,'uptimeSeconds':round(time.monotonic()-STARTED_AT),'version':installation_version(server.RequestHandlerClass.keywords['directory']) if hasattr(server.RequestHandlerClass,'keywords') else None,
+            'zed':zed,'photoCloud':None if cloud is None else {'enabled':True,'room':cloud.config.get('room')}}
+
 class Handler(SimpleHTTPRequestHandler):
     extensions_map={**SimpleHTTPRequestHandler.extensions_map,'.mjs':'text/javascript','.wasm':'application/wasm','.glb':'model/gltf-binary'}
     def log_message(self,format,*args):
@@ -56,6 +77,8 @@ class Handler(SimpleHTTPRequestHandler):
     def send_head(self):
         if urlsplit(self.path).path.startswith('/api/zed/'):
             self.zed_request();return None
+        if urlsplit(self.path).path=='/api/health':
+            self.health_request();return None
         request=urlsplit(self.path)
         if request.path=='/':
             self.send_response(302)
@@ -81,6 +104,15 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if urlsplit(self.path).path.startswith('/api/zed/'):self.zed_request()
         else:self.send_error(404)
+
+    def health_request(self):
+        # Local-only machine-readable status for the kiosk health check; no secrets.
+        host=self.headers.get('Host','')
+        if host not in {f'localhost:{self.server.server_port}',f'127.0.0.1:{self.server.server_port}'}:
+            self.send_error(403,'Health is restricted to this local installation');return
+        body=json.dumps(installation_health(self.server),separators=(',',':')).encode()
+        self.send_response(200);self.send_header('Content-Type','application/json')
+        self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
 
     def zed_request(self):
         host=self.headers.get('Host','')

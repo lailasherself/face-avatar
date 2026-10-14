@@ -1,0 +1,68 @@
+name: Installation monitor
+
+# Checks the live site and the kiosk heartbeat every 10 minutes. A failure
+# fails the run (GitHub emails the repository owner) and opens or updates the
+# "Installation alert" issue; recovery closes it. Set the repository variable
+# MONITOR_KIOSK to "off" while the kiosk is intentionally shut down.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: installation-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      SITE: ${{ vars.LIVE_SITE || 'https://face-avatar.vercel.app' }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      KIOSK_STATION: ${{ vars.KIOSK_STATION || 'atl-downtown' }}
+      MONITOR_KIOSK: ${{ vars.MONITOR_KIOSK || 'on' }}
+      HEARTBEAT_MAX_AGE_MINUTES: ${{ vars.HEARTBEAT_MAX_AGE_MINUTES || '4' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/monitor_installation.py
+          sparse-checkout-cone-mode: false
+      - name: Run checks
+        id: checks
+        run: python3 scripts/monitor_installation.py --github-output "$GITHUB_OUTPUT" --report report.md
+      - name: Open or update the alert issue
+        if: always() && steps.checks.outputs.status == 'failing'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs=require('fs');const body=fs.readFileSync('report.md','utf8');
+            const title='🚨 Installation alert';
+            const {data:open}=await github.rest.issues.listForRepo({owner:context.repo.owner,repo:context.repo.repo,state:'open',labels:'installation-alert',per_page:5});
+            const stamp=`\n\n_Last checked ${new Date().toISOString()} · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
+            if(open.length){
+              await github.rest.issues.update({owner:context.repo.owner,repo:context.repo.repo,issue_number:open[0].number,body:body+stamp});
+            }else{
+              try{await github.rest.issues.createLabel({owner:context.repo.owner,repo:context.repo.repo,name:'installation-alert',color:'d73a4a',description:'Automated installation monitor'});}catch(e){}
+              await github.rest.issues.create({owner:context.repo.owner,repo:context.repo.repo,title,body:body+stamp,labels:['installation-alert']});
+            }
+      - name: Close the alert issue on recovery
+        if: always() && steps.checks.outputs.status == 'ok'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data:open}=await github.rest.issues.listForRepo({owner:context.repo.owner,repo:context.repo.repo,state:'open',labels:'installation-alert',per_page:5});
+            for(const issue of open){
+              await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:issue.number,body:`✅ Recovered at ${new Date().toISOString()}. All checks passing again.`});
+              await github.rest.issues.update({owner:context.repo.owner,repo:context.repo.repo,issue_number:issue.number,state:'closed'});
+            }
+      - name: Fail the run so GitHub sends a notification
+        if: always() && steps.checks.outputs.status == 'failing'
+        run: |
+          cat report.md
+          exit 1
