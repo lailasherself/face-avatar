@@ -36,6 +36,25 @@ class InstallationServerTests(unittest.TestCase):
             response=connection.getresponse()
             return response.status,dict(response.getheaders()),response.read()
 
+    def test_health_endpoint_is_local_only_and_reports_capture_state(self):
+        import json
+        status,headers,body=self.request('/api/health')
+        self.assertEqual(status,200);self.assertEqual(headers['Content-Type'],'application/json')
+        health=json.loads(body)
+        self.assertTrue(health['ok']);self.assertIsNone(health['zed']);self.assertIsNone(health['photoCloud'])
+        self.assertGreaterEqual(health['uptimeSeconds'],0);self.assertEqual(len(health['version']),16)
+        class Capture:
+            def __init__(self):
+                import threading,time
+                self.thread=threading.Thread(target=lambda:None);self.error=None;self.session='abc'
+                self.latest=({'peopleCount':1},b'',time.monotonic());self.last_request=time.monotonic()-30
+        self.server.zed_capture=Capture()
+        health=json.loads(self.request('/api/health')[2])
+        self.assertEqual(health['zed']['peopleCount'],1);self.assertFalse(health['zed']['running'])
+        self.assertGreaterEqual(health['zed']['idleSeconds'],29);self.assertLess(health['zed']['frameAgeMs'],5000)
+        status,_,_=self.request('/api/health',headers={'Host':'kiosk.example'})
+        self.assertEqual(status,403)
+
     def test_root_redirects_to_current_installation_preserving_options(self):
         status,headers,_=self.request('/?setup&character=pearl')
         self.assertEqual(status,302)

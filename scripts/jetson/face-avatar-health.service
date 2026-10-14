@@ -1,0 +1,7 @@
+[Unit]
+Description=Face Avatar installation health check (verify, self-heal, report)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/share/face-avatar/kiosk_health.py
+TimeoutStartSec=90
