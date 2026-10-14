@@ -49,7 +49,7 @@ jobs:
               await github.rest.issues.update({owner:context.repo.owner,repo:context.repo.repo,issue_number:open[0].number,body:body+stamp});
             }else{
               try{await github.rest.issues.createLabel({owner:context.repo.owner,repo:context.repo.repo,name:'installation-alert',color:'d73a4a',description:'Automated installation monitor'});}catch(e){}
-              await github.rest.issues.create({owner:context.repo.owner,repo:context.repo.repo,title,body:body+stamp,labels:['installation-alert']});
+              await github.rest.issues.create({owner:context.repo.owner,repo:context.repo.repo,title,body:body+stamp,labels:['installation-alert'],assignees:[context.repo.owner]});
             }
       - name: Close the alert issue on recovery
         if: always() && steps.checks.outputs.status == 'ok'
