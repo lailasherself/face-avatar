@@ -1,0 +1,83 @@
+--- .context/jetson-zed_capture.py	2026-10-14 18:50:32
++++ .context/jetson-zed_capture.new.py	2026-10-14 18:51:22
+@@ -48,9 +48,12 @@
+     """Keep the selected person's outstretched hands inside the privacy mask."""
+     points=[(float(p[0])*width,float(p[1])*height) for p in bounds
+             if len(p)>=2 and all(math.isfinite(float(v)) for v in p[:2])]
++    # Joints at >=.3 confidence are what the browser-side gesture matching uses
++    # (HUMAN_BODY_FAST reports raised wrists at ~.4-.7); the mask must not hide
++    # pixels the gesture is allowed to look at.
+     for joint in joints.values():
+         image=joint.get('image',[])
+-        if joint.get('confidence',0)>=.6 and len(image)==2 and all(math.isfinite(v) and 0<=v<=1 for v in image):
++        if joint.get('confidence',0)>=.3 and len(image)==2 and all(math.isfinite(v) and 0<=v<=1 for v in image):
+             points.append((image[0]*width,image[1]*height))
+     if not points:return None
+     xs,ys=zip(*points);pad=max(12,(max(xs)-min(xs))*.1)
+@@ -66,16 +69,20 @@
+     if len(shoulders)==2:
+         span=math.dist(*shoulders)
+         if span>=12:
+-            reach=span*1.2
++            # A swipe is an arm extended sideways: about two shoulder spans from
++            # the shoulder including the hand. 1.2 spans clipped the hand at the
++            # mask edge mid-swipe (seen 2026-10-14), so cover the full reach.
++            reach=span*2.2
+             x0=min(x0,min(p[0] for p in shoulders)-reach)
+             x1=max(x1,max(p[0] for p in shoulders)+reach)
+-            y0=min(y0,min(p[1] for p in shoulders)-reach)
++            y0=min(y0,min(p[1] for p in shoulders)-span*1.6)
++            y1=max(y1,max(p[1] for p in shoulders)+span*.6)
+     for side in ['LEFT','RIGHT']:
+         wrist=joints.get(side+'_WRIST',{});elbow=joints.get(side+'_ELBOW',{})
+-        if wrist.get('confidence',0)<.6:continue
++        if wrist.get('confidence',0)<.3:continue
+         p=wrist.get('image',[])
+         if len(p)!=2 or not all(math.isfinite(v) and 0<=v<=1 for v in p):continue
+-        reach=max(12,width*.025)
++        reach=max(12,width*.025,(math.dist(*shoulders)*.6 if len(shoulders)==2 else 0))
+         q=elbow.get('image',[])
+         if elbow.get('confidence',0)>=.6 and len(q)==2 and all(math.isfinite(v) and 0<=v<=1 for v in q):
+             reach=max(reach,math.hypot((p[0]-q[0])*width,(p[1]-q[1])*height)*.8)
+@@ -163,6 +170,33 @@
+             width,height=resolution.width,resolution.height
+             output=sl.Resolution(960,round(960*height/width))
+             image=sl.Mat();bodies=sl.Bodies();selector=PersonSelector();sequence=0
++            # Outdoors the camera meters the bright background and renders the
++            # visitor as a silhouette the hand detector cannot read. Point the
++            # auto-exposure/gain region at the tracked person's upper body instead.
++            exposure_roi=None;exposure_at=0
++            def meter_on(selected,now):
++                nonlocal exposure_roi,exposure_at
++                if not hasattr(camera,'set_camera_settings_roi') or now-exposure_at<.5:return
++                try:
++                    if selected is None:
++                        if exposure_roi is not None:
++                            camera.set_camera_settings_roi(sl.VIDEO_SETTINGS.AEC_AGC_ROI,sl.Rect(0,0,width,height),sl.SIDE.BOTH,True)
++                            exposure_roi=None;exposure_at=now
++                        return
++                    xs=[float(p[0]) for p in selected.bounding_box_2d];ys=[float(p[1]) for p in selected.bounding_box_2d]
++                    if not xs or not all(math.isfinite(v) for v in xs+ys):return
++                    bw=max(xs)-min(xs);bh=max(ys)-min(ys)
++                    # Head and torso only: the top 55% of the body box, widened a little.
++                    x=int(max(0,min(xs)-bw*.15));y=int(max(0,min(ys)-bh*.05))
++                    w=int(min(width-x,bw*1.3));h=int(min(height-y,bh*.6))
++                    if w<16 or h<16:return
++                    roi=(x//8*8,y//8*8,max(16,w//8*8),max(16,h//8*8))
++                    if roi!=exposure_roi:
++                        camera.set_camera_settings_roi(sl.VIDEO_SETTINGS.AEC_AGC_ROI,sl.Rect(*roi),sl.SIDE.BOTH,False)
++                        exposure_roi=roi
++                    exposure_at=now
++                except Exception:
++                    exposure_at=now  # never let metering break capture
+             while not self.stop_event.is_set() and time.monotonic()-self.last_request<10:
+                 captured=time.monotonic()
+                 check(camera.grab(runtime),'ZED capture')
+@@ -171,6 +205,7 @@
+                 people=[p for p in bodies.body_list if p.tracking_state==sl.OBJECT_TRACKING_STATE.OK
+                         and all(math.isfinite(float(v)) for v in p.position)]
+                 selected=selector.choose(people,captured)
++                meter_on(selected,captured)
+                 packet={'version':1,'session':self.session,'sequence':sequence,
+                         'coordinates':'RIGHT_HANDED_Y_UP','reference':'CAMERA','units':'meters',
+                         'body':body_packet(selected,sl,width,height),'peopleCount':len(people)}
