@@ -155,6 +155,11 @@ function resetView(){
     const waist=spine?.getWorldPosition(new THREE.Vector3()).y??((bounds?.min.y||0)+size.y*.46);
     const upperHeight=(bounds?.max.y??3.7)-waist;
     const front=bounds?.max.z||0,back=bounds?.min.z||0;
+    // The lower-body clip hides geometry below the TV. Whole-body framing puts the
+    // waist at the bottom edge so clipping there is invisible; rim framing moves
+    // it to the bottom edge of the view instead, so the body runs naturally to the
+    // bottom of the screen and no flat cut can appear.
+    let clipY=waist;
     // Rim framing is for the physical installation (zedMode) or an explicit ?rim=;
     // the hosted TV close-up has no saucer and keeps the whole-body framing.
     const face=(zedMode||params.has('rim'))&&current?faceOf(current):null;
@@ -173,7 +178,10 @@ function resetView(){
       const d=face.z+h/tangent+Math.max(0,front-face.z)*.5;
       // Pin the topmost point just under the top edge at the face depth.
       const ty=top-(1-2*TOP_MARGIN)*(d-face.z)*tangent;
-      current.framing={h,d,faceFrac:fh/(2*h)};
+      // Bottom edge of the view at the farthest depth of the rig, minus a margin:
+      // below this line nothing is on screen at any depth.
+      clipY=ty-(d-back)*tangent-.05;
+      current.framing={h,d,faceFrac:fh/(2*h),clipY};
       controls.target.set(center.x,ty,0);
       camera.position.set(center.x,ty,d);
     }else{
@@ -184,7 +192,7 @@ function resetView(){
       camera.position.set(center.x,controls.target.y,d);
     }
     camera.zoom=1;camera.updateProjectionMatrix();controls.update();
-    waistClip.constant=-waist;
+    waistClip.constant=-clipY;
     return;
   }
   const portrait=camera.aspect<1;
