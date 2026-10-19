@@ -4,7 +4,7 @@
   "vehicle": null,
   "characters": [
     {
-      "id": "orbit",
+      "id": "orbit","framing":{"chinMax":0.58},
       "name": "Orbit",
       "bones": 39,
       "sourceMethod": "supplied_image_contour_blender",
@@ -36,7 +36,7 @@
       "revision": "reference_rig_review"
     },
     {
-      "id": "clay",
+      "id": "clay","framing":{"chinMax":0.56},
       "name": "Clay",
       "smileBiteFit": {"centerDrop": 0.3},
       "url": "assets/likeness-trials/clay-body-rig.glb",

@@ -182,9 +182,14 @@ function resetView(){
       // Bust: top at the margin, shoulders at the bottom edge.
       const bust=(top-face.shoulder)/(2*(SHOULDER_LINE-TOP_MARGIN));
       // Never let the eyes sit lower than EYE_MAX: with the top pinned, lifting
-      // the eyes means zooming out (larger h), so the guard raises h.
-      const eyesHigh=(top-face.eye.y)/(2*(EYE_MAX-TOP_MARGIN));
-      let h=Math.max(bust,eyesHigh);
+      // the eyes means zooming out (larger h), so the guard raises h. A rig whose
+      // readable features sit low (long antennae above a small face, or a mouth
+      // that carries the expression) can ask for more in the manifest:
+      // "framing":{"eyeMax":.5,"chinMax":.58}.
+      const hint=current.info.framing||{};
+      const eyesHigh=(top-face.eye.y)/(2*((hint.eyeMax??EYE_MAX)-TOP_MARGIN));
+      const chinHigh=hint.chinMax?(top-face.chin)/(2*(hint.chinMax-TOP_MARGIN)):0;
+      let h=Math.max(bust,eyesHigh,chinHigh);
       h=Math.max(h,fh/(2*FACE_MAX),size.x/(2*camera.aspect*.9));
       const d=face.z+h/tangent+Math.max(0,front-face.z)*.5;
       // Pin the topmost point just under the top edge at the face depth.
