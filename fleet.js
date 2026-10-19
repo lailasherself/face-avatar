@@ -103,18 +103,20 @@ const descriptions={orbit:'LILAC / FOUR ANTENNAE',pearl:'PEARLESCENT / SINGLE EY
 
 function notice(message){$('notice').textContent=message;$('notice').hidden=!message;}
 function status(message,live=false){$('tracking-status').textContent=message;$('tracking-status').classList.toggle('live',live);}
-// The installation display sits behind a printed saucer that covers the lower
-// part of the TV. Every alien must peek over its rim, so the framing works from
-// the FACE rather than the whole body. The face is located from the vertices the
-// facial morphs move (none of the rigs have eye bones). Each alien is made as
-// large as possible with its topmost point just under the top edge, its chin
-// just above the rim when the topper allows, and its eyes always clear of the
-// rim: a tall topper (antennae, crest) lets the chin dip behind the rim rather
-// than shrinking the face below FACE_MIN. Active on the installation (zedMode)
-// or with ?rim=0.42 (saucer top edge as a fraction of screen height from the
-// top), which also tunes it per site.
-const RIM=Math.min(.7,Math.max(.2,Number(params.get('rim'))||.42));
-const TOP_MARGIN=.04,CHIN_GAP=.02,EYE_CLEAR=.06,FACE_MIN=.20,FACE_MAX=.30;
+// The installation display sits behind a printed saucer on the window glass.
+// Where its rim crosses the TV depends on where the visitor stands, so the
+// installation frames a HEAD-AND-SHOULDERS portrait rather than fitting the
+// body: the alien's top sits just under the top edge, its shoulders at the
+// bottom edge, and the body continues below the screen (clipped off-screen,
+// never with a visible cut). Faces that would still land low are tightened
+// further until the eyes are in the upper part of the screen. The face is
+// located from the vertices the facial morphs move (no rig has eye bones) and
+// the shoulders from the upper-arm bone origins. Active in zedMode or with
+// ?rim (optionally ?rim=<eyeMax>, default .65: eyes never lower than this
+// fraction of the screen height from the top; lower values lift the face at
+// the cost of a smaller alien).
+const EYE_MAX=Math.min(.8,Math.max(.2,Number(params.get('rim'))||.65));
+const TOP_MARGIN=.04,SHOULDER_LINE=.92,FACE_MAX=.45;
 const FACE_MORPHS=['eyeBlinkLeft','eyeBlinkRight','browInnerUp','browOuterUpLeft','browOuterUpRight','jawOpen','mouthSmileLeft','mouthSmileRight','cheekPuff','noseSneerLeft','noseSneerRight'];
 function faceOf(record){
   const cache=record.faces??={};
@@ -140,7 +142,18 @@ function faceOf(record){
   let face=null;
   if(points&&eyes){
     eye.divideScalar(eyes);
-    face={eye,chin:box.min.y,brow:box.max.y,z:(box.min.z+box.max.z)/2,width:box.max.x-box.min.x};
+    // Shoulder line: the upper-arm bone origins (the shoulder joints), falling
+    // back to a little below the head bone (the neck base).
+    const scene=record.gltf.scene,w=new THREE.Vector3();
+    const joints=[];
+    for(const side of ['L','R'])for(const name of ['Shoulder','UpperArm'])for(const sep of ['.','','_']){
+      const b=scene.getObjectByName(name+sep+side);if(b){joints.push(b.getWorldPosition(w.clone()).y);break;}
+    }
+    let shoulder,shoulderSource;
+    if(joints.length){shoulder=joints.reduce((a,b)=>a+b,0)/joints.length;shoulderSource='upper-arm bones';}
+    else if(record.head){const headY=record.head.getWorldPosition(w).y;shoulder=headY-.35*(eye.y-headY);shoulderSource='below head bone';}
+    else{shoulder=box.min.y-(box.max.y-box.min.y)*.6;shoulderSource='below chin';}
+    face={eye,chin:box.min.y,brow:box.max.y,z:(box.min.z+box.max.z)/2,width:box.max.x-box.min.x,shoulder,shoulderSource};
   }
   cache[record.pose]=face;return face;
 }
@@ -166,14 +179,12 @@ function resetView(){
     if(face){
       const top=bounds?.max.y??face.brow+.6,fh=face.brow-face.chin;
       // Half-height of the view at the face depth (smaller = larger alien).
-      // Preferred: top at the margin and chin above the rim (whole face visible).
-      let h=(top-face.chin)/(2*(RIM-CHIN_GAP-TOP_MARGIN));
-      if(fh/(2*h)<FACE_MIN){
-        // A tall topper would make the face small: let the chin dip behind the
-        // rim to grow the face, but never let the eyes drop below EYE_CLEAR.
-        const eyesLimit=(top-face.eye.y)/(2*(RIM-EYE_CLEAR-TOP_MARGIN));
-        h=Math.max(eyesLimit,fh/(2*FACE_MIN));
-      }
+      // Bust: top at the margin, shoulders at the bottom edge.
+      const bust=(top-face.shoulder)/(2*(SHOULDER_LINE-TOP_MARGIN));
+      // Never let the eyes sit lower than EYE_MAX: with the top pinned, lifting
+      // the eyes means zooming out (larger h), so the guard raises h.
+      const eyesHigh=(top-face.eye.y)/(2*(EYE_MAX-TOP_MARGIN));
+      let h=Math.max(bust,eyesHigh);
       h=Math.max(h,fh/(2*FACE_MAX),size.x/(2*camera.aspect*.9));
       const d=face.z+h/tangent+Math.max(0,front-face.z)*.5;
       // Pin the topmost point just under the top edge at the face depth.
@@ -181,7 +192,7 @@ function resetView(){
       // Bottom edge of the view at the farthest depth of the rig, minus a margin:
       // below this line nothing is on screen at any depth.
       clipY=ty-(d-back)*tangent-.05;
-      current.framing={h,d,faceFrac:fh/(2*h),clipY};
+      current.framing={h,d,faceFrac:fh/(2*h),clipY,bust:h===bust};
       controls.target.set(center.x,ty,0);
       camera.position.set(center.x,ty,d);
     }else{
@@ -690,5 +701,5 @@ if(new URLSearchParams(location.search).has('qa'))Object.defineProperty(window,'
   tongueDroppedFrames:tongueTracker?.droppedFrames||0,
   swapState:handTracker?.detector.state||'idle',swapReason:handTracker?.detector.reason||'waiting',swipeTrace:handTracker?.trace||[],trackedArms:Object.keys(trackedArms).filter(s=>performance.now()-trackedArms[s].time<400),
   stage:fleetStage.snapshot(),loadedCharacters:fleetStage.entries.size,backdropFrames:fleetStage.backdropFrames,
-  cameraPosition:camera.position.toArray(),cameraTarget:controls.target.toArray(),cameraFov:camera.fov,cameraAspect:camera.aspect,face:(f=>f?{eye:f.eye.toArray(),chin:f.chin,brow:f.brow,z:f.z,width:f.width}:null)(current?.faces?.[current.pose]),framing:current?.framing??null,renderFrame:renderer.info.render.frame
+  cameraPosition:camera.position.toArray(),cameraTarget:controls.target.toArray(),cameraFov:camera.fov,cameraAspect:camera.aspect,face:(f=>f?{eye:f.eye.toArray(),chin:f.chin,brow:f.brow,z:f.z,width:f.width,shoulder:f.shoulder,shoulderSource:f.shoulderSource}:null)(current?.faces?.[current.pose]),framing:current?.framing??null,renderFrame:renderer.info.render.frame
 })});
