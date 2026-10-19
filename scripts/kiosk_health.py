@@ -277,6 +277,13 @@ def heal(config, checks, state, tools, now):
     """Restart a service only after the same failure repeats, with a cooldown."""
     actions = []
     failing = {name for name, result in checks.items() if not result['ok']}
+    # With no monitor attached, Chrome throttles the invisible page to a few
+    # frames per second. That is not a frozen page and restarting the browser
+    # would not help, so the page check is reported but never healed then.
+    display = checks.get('display', {})
+    if not display.get('ok', True) and not display.get('skipped'):
+        failing.discard('page')
+        state.setdefault('streaks', {}).pop('page', None)
     streaks = state.setdefault('streaks', {})
     for name in list(streaks):
         if name not in failing:
