@@ -114,6 +114,42 @@ class KioskHealthTests(unittest.TestCase):
         self.assertIn('server check crashed', payload['summary'])
         self.assertTrue(payload['checks']['system']['ok'])
 
+    def test_frozen_page_is_not_healed_while_no_monitor_is_attached(self):
+        frozen = json.dumps({'url': '/cockpit.html', 'ready': 'complete', 'qa': True, 'rafFps': 2.0, 'renderFps': 1, 'camera': True,
+                             'character': 'orbit', 'loaded': 3, 'person': 1, 'hand': 'tracking', 'faceFrames': 10, 'notice': '', 'loading': False})
+        class FakeCDP:
+            def __init__(self, url): pass
+            def call(self, method, params=None, session=None):
+                if method == 'Target.getTargets': return {'targetInfos': [{'type': 'page', 'url': 'http://localhost:8014/cockpit.html', 'targetId': 't'}]}
+                if method == 'Target.attachToTarget': return {'sessionId': 's'}
+                return {'result': {'value': frozen}}
+            def close(self): pass
+        def fetch(url, timeout=4):
+            if url.endswith('/json/version'): return {'webSocketDebuggerUrl': 'ws://127.0.0.1:9222/devtools/browser/x'}
+            return {'ok': True, 'version': 'v', 'zed': {'running': True, 'error': None, 'frameAgeMs': 40, 'idleSeconds': 0}}
+        def make_run(monitors):
+            calls = []
+            def run(*args, **kw):
+                calls.append(args)
+                if 'is-active' in args: return 0, 'active\n'
+                if 'xrandr' in args: return 0, f'Monitors: {monitors}\n'
+                return 0, ''
+            return run, calls
+        # No monitor: the frozen page is reported but the browser is never restarted.
+        run, calls = make_run(0)
+        state = {}
+        for i in range(4):
+            payload = kh.run_once(CONFIG, state, tools(run=run, fetch_json=fetch, cdp=FakeCDP), now=1000 + i * 60)
+        self.assertFalse(payload['ok'])
+        self.assertIn('no monitor detected', payload['summary'])
+        self.assertFalse(any('restart' in c for c in calls), calls)
+        # Monitor present: the same frozen page restarts the browser after three checks.
+        run, calls = make_run(1)
+        state = {}
+        for i in range(3):
+            payload = kh.run_once(CONFIG, state, tools(run=run, fetch_json=fetch, cdp=FakeCDP), now=1000 + i * 60)
+        self.assertIn(('systemctl', '--user', 'restart', 'face-avatar-browser.service'), calls)
+
     def test_payload_is_json_serialisable_and_bounded(self):
         payload = kh.run_once(CONFIG, {}, tools(), now=1000)
         encoded = json.dumps(payload)
