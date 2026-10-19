@@ -103,6 +103,47 @@ const descriptions={orbit:'LILAC / FOUR ANTENNAE',pearl:'PEARLESCENT / SINGLE EY
 
 function notice(message){$('notice').textContent=message;$('notice').hidden=!message;}
 function status(message,live=false){$('tracking-status').textContent=message;$('tracking-status').classList.toggle('live',live);}
+// The installation display sits behind a printed saucer that covers the lower
+// part of the TV. Every alien must peek over its rim, so the framing works from
+// the FACE rather than the whole body. The face is located from the vertices the
+// facial morphs move (none of the rigs have eye bones). Each alien is made as
+// large as possible with its topmost point just under the top edge, its chin
+// just above the rim when the topper allows, and its eyes always clear of the
+// rim: a tall topper (antennae, crest) lets the chin dip behind the rim rather
+// than shrinking the face below FACE_MIN. Active on the installation (zedMode)
+// or with ?rim=0.42 (saucer top edge as a fraction of screen height from the
+// top), which also tunes it per site.
+const RIM=Math.min(.7,Math.max(.2,Number(params.get('rim'))||.42));
+const TOP_MARGIN=.04,CHIN_GAP=.02,EYE_CLEAR=.06,FACE_MIN=.20,FACE_MAX=.30;
+const FACE_MORPHS=['eyeBlinkLeft','eyeBlinkRight','browInnerUp','browOuterUpLeft','browOuterUpRight','jawOpen','mouthSmileLeft','mouthSmileRight','cheekPuff','noseSneerLeft','noseSneerRight'];
+function faceOf(record){
+  const cache=record.faces??={};
+  if(record.pose in cache)return cache[record.pose];
+  record.gltf.scene.updateWorldMatrix(true,true);
+  const box=new THREE.Box3(),eye=new THREE.Vector3(),v=new THREE.Vector3();let eyes=0,points=0;
+  for(const m of record.meshes){
+    const dict=m.morphTargetDictionary,pos=m.geometry.attributes.position,morphs=m.geometry.morphAttributes?.position;
+    if(!pos||!morphs)continue;
+    const relative=m.geometry.morphTargetsRelative!==false;
+    for(const name of FACE_MORPHS){
+      const idx=dict[name];if(idx===undefined||!morphs[idx])continue;
+      const delta=morphs[idx],isEye=name.startsWith('eyeBlink');
+      for(let i=0;i<delta.count;i++){
+        let dx=delta.getX(i),dy=delta.getY(i),dz=delta.getZ(i);
+        if(!relative){dx-=pos.getX(i);dy-=pos.getY(i);dz-=pos.getZ(i);}
+        if(dx*dx+dy*dy+dz*dz<1e-10)continue;
+        v.fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);box.expandByPoint(v);points++;
+        if(isEye){eye.add(v);eyes++;}
+      }
+    }
+  }
+  let face=null;
+  if(points&&eyes){
+    eye.divideScalar(eyes);
+    face={eye,chin:box.min.y,brow:box.max.y,z:(box.min.z+box.max.z)/2,width:box.max.x-box.min.x};
+  }
+  cache[record.pose]=face;return face;
+}
 function resetView(){
   const ty=bodyPose==='Seated'?1.48:1.7;
   const bounds=fleetStage.entries.get(currentIndex)?.bounds;
@@ -114,11 +155,34 @@ function resetView(){
     const waist=spine?.getWorldPosition(new THREE.Vector3()).y??((bounds?.min.y||0)+size.y*.46);
     const upperHeight=(bounds?.max.y??3.7)-waist;
     const front=bounds?.max.z||0,back=bounds?.min.z||0;
-    // Keep the waist below the TV's bottom edge, even on deep or narrow rigs.
-    const d=Math.max((upperHeight/tangent+.84*front+1.03*back)/1.87,
-      size.x/(2*tangent*camera.aspect*.9)+front);
-    controls.target.set(center.x,waist+1.03*(d-back)*tangent,0);
-    camera.position.set(center.x,controls.target.y,d);
+    // Rim framing is for the physical installation (zedMode) or an explicit ?rim=;
+    // the hosted TV close-up has no saucer and keeps the whole-body framing.
+    const face=(zedMode||params.has('rim'))&&current?faceOf(current):null;
+    if(face){
+      const top=bounds?.max.y??face.brow+.6,fh=face.brow-face.chin;
+      // Half-height of the view at the face depth (smaller = larger alien).
+      // Preferred: top at the margin and chin above the rim (whole face visible).
+      let h=(top-face.chin)/(2*(RIM-CHIN_GAP-TOP_MARGIN));
+      if(fh/(2*h)<FACE_MIN){
+        // A tall topper would make the face small: let the chin dip behind the
+        // rim to grow the face, but never let the eyes drop below EYE_CLEAR.
+        const eyesLimit=(top-face.eye.y)/(2*(RIM-EYE_CLEAR-TOP_MARGIN));
+        h=Math.max(eyesLimit,fh/(2*FACE_MIN));
+      }
+      h=Math.max(h,fh/(2*FACE_MAX),size.x/(2*camera.aspect*.9));
+      const d=face.z+h/tangent+Math.max(0,front-face.z)*.5;
+      // Pin the topmost point just under the top edge at the face depth.
+      const ty=top-(1-2*TOP_MARGIN)*(d-face.z)*tangent;
+      current.framing={h,d,faceFrac:fh/(2*h)};
+      controls.target.set(center.x,ty,0);
+      camera.position.set(center.x,ty,d);
+    }else{
+      // Keep the waist below the TV's bottom edge, even on deep or narrow rigs.
+      const d=Math.max((upperHeight/tangent+.84*front+1.03*back)/1.87,
+        size.x/(2*tangent*camera.aspect*.9)+front);
+      controls.target.set(center.x,waist+1.03*(d-back)*tangent,0);
+      camera.position.set(center.x,controls.target.y,d);
+    }
     camera.zoom=1;camera.updateProjectionMatrix();controls.update();
     waistClip.constant=-waist;
     return;
@@ -618,5 +682,5 @@ if(new URLSearchParams(location.search).has('qa'))Object.defineProperty(window,'
   tongueDroppedFrames:tongueTracker?.droppedFrames||0,
   swapState:handTracker?.detector.state||'idle',swapReason:handTracker?.detector.reason||'waiting',swipeTrace:handTracker?.trace||[],trackedArms:Object.keys(trackedArms).filter(s=>performance.now()-trackedArms[s].time<400),
   stage:fleetStage.snapshot(),loadedCharacters:fleetStage.entries.size,backdropFrames:fleetStage.backdropFrames,
-  cameraPosition:camera.position.toArray(),renderFrame:renderer.info.render.frame
+  cameraPosition:camera.position.toArray(),cameraTarget:controls.target.toArray(),cameraFov:camera.fov,cameraAspect:camera.aspect,face:(f=>f?{eye:f.eye.toArray(),chin:f.chin,brow:f.brow,z:f.z,width:f.width}:null)(current?.faces?.[current.pose]),framing:current?.framing??null,renderFrame:renderer.info.render.frame
 })});
