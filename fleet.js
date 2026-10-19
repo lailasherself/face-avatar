@@ -159,7 +159,7 @@ function setDisplayView(view,updateURL=true){
   }
   resize();
 }
-$('scene-tabs').hidden=setupMode;
+$('scene-tabs').hidden=setupMode||zedMode; // the installation display fixes its view by launch URL; no tab strip
 $('scene-tabs').addEventListener('click',event=>{
   const tab=event.target.closest('[role=tab]');if(tab)setDisplayView(tab.dataset.view);
 });
