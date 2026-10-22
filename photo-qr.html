@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Scan for Your Alien Photo</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;background:#f4f6f3;color:#19241f;font-family:Arial,sans-serif;letter-spacing:0}main{max-width:460px;width:100%;padding:32px;text-align:center}h1{font-size:32px;line-height:1.15}p{font-size:15px;line-height:1.5}#code{display:block;width:100%;max-width:320px;aspect-ratio:1;margin:24px auto;image-rendering:pixelated}a{color:#086c60;overflow-wrap:anywhere}small{display:block;margin-top:24px;color:#526158;line-height:1.5}
+  </style>
+</head>
+<body><main>
+  <p>ATL DOWNTOWN</p><h1>Your photo.<br>Your alien.</h1>
+  <img id="code" alt="Scan to open the phone photo companion" hidden>
+  <p id="instruction">Scan, then tap Take my photo.</p>
+  <a id="link"></a>
+  <small>Local test only. Your phone and this computer must be on the same Wi-Fi.</small>
+</main>
+<script src="vendor/qrcode/qrcode.js"></script>
+<script>
+  try{
+    const phone=new URL(new URLSearchParams(location.search).get('phone'));
+    if(!['http:','https:'].includes(phone.protocol)||['localhost','127.0.0.1'].includes(phone.hostname))throw new Error('Use the computer LAN address for the phone link.');
+    const code=qrcode(0,'M');code.addData(phone.href);code.make();
+    document.getElementById('code').src=code.createDataURL(8,32);document.getElementById('code').hidden=false;
+    const link=document.getElementById('link');link.href=phone.href;link.textContent=phone.href;
+  }catch(error){document.getElementById('instruction').textContent='Open this page with ?phone= followed by the phone companion LAN URL.';}
+</script>
+</body></html>
