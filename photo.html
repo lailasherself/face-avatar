@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0a121e">
+  <meta name="referrer" content="no-referrer">
+  <title>Your Alien Photo | ATL Downtown</title>
+  <link rel="stylesheet" href="/photo.css">
+</head>
+<body>
+  <header>
+    <a href="/" aria-label="Downtown Atlanta photo home"><img class="partner-logo" src="/assets/photo-vinyl/downtown-logo.png" alt="Downtown Atlanta Inc."></a>
+    <span>YOUR CLOSE<br>ENCOUNTER.</span>
+  </header>
+  <main>
+    <p id="demo" class="test-label" hidden>FLOW TEST / No camera photo is taken</p>
+    <section id="welcome">
+      <img class="headline" src="/assets/photo-vinyl/headline.png" alt="You're the alien.">
+      <div class="alien-image">
+        <img id="portrait" src="/alien.png" alt="An alien from Downtown Atlanta">
+        <img class="ship-overlay" src="/assets/photo-vinyl/ship.png" alt="">
+        <span id="portrait-label">YOUR DOWNTOWN ENCOUNTER</span>
+      </div>
+      <h1 id="welcome-title">Your alien photo</h1>
+      <p id="character-line" class="intro">Step into the ship. Take home the proof.</p>
+      <p id="availability" role="status">Connecting to the window...</p>
+      <button id="take" class="primary" disabled><img src="/icons/camera.svg" alt="">Take my photo</button>
+      <p id="privacy-notice" class="privacy">The window camera takes your photo. Your private preview is deleted after 10 minutes. Nothing is posted automatically.</p>
+    </section>
+    <section id="countdown" hidden>
+      <p id="countdown-title" class="eyebrow">GET READY</p>
+      <h1>Lower your phone.<br><span id="look-at">Look at the camera.</span></h1>
+      <div id="number" aria-hidden="true">5</div>
+      <p class="intro">Your ship is waiting. Strike a pose.</p>
+      <p class="sr-only" role="status">Your photo will be taken in five seconds. Lower your phone and look at the camera.</p>
+      <button id="cancel" class="secondary"><img src="/icons/x.svg" alt="">Cancel photo</button>
+    </section>
+    <section id="processing" hidden>
+      <div class="loader" aria-hidden="true"></div>
+      <h1>Your alien look.</h1>
+      <p role="status">Your photo is on its way...</p>
+      <button id="cancel-processing" class="secondary">Cancel</button>
+    </section>
+    <section id="result" hidden>
+      <div class="result-heading">
+        <p class="eyebrow">DOWNTOWN ATLANTA · PLANET EARTH</p>
+        <h1><img class="headline" src="/assets/photo-vinyl/headline.png" alt="You're the alien."></h1>
+        <p class="intro">Your ship. Your face. Your close encounter.</p>
+      </div>
+      <figure class="photo-card">
+        <p id="photo-status" role="status">Preparing your photo and putting you in the ship...</p>
+        <img id="preview" alt="You with your alien head inside the spaceship from the window artwork">
+        <figcaption><h2 id="result-title">Only in Atlanta.</h2><span>ENCOUNTER CAPTURED <span aria-hidden="true">↗</span></span></figcaption>
+      </figure>
+      <div class="photo-actions">
+        <a id="save" class="primary" download="ATL-Downtown.jpg" aria-disabled="true"><img src="/icons/download.svg" alt="">Save my alien photo</a>
+        <button id="share" class="secondary" hidden>Share the encounter <img src="/icons/arrow-right.svg" alt=""></button>
+      </div>
+      <div class="result-actions"><button id="retake"><img src="/icons/rotate-ccw.svg" alt="">Take another</button><button id="delete">Delete photo</button></div>
+      <p class="privacy result-privacy"><span id="expiry"></span><br>Nothing is posted automatically.</p>
+    </section>
+    <p id="message" role="alert" hidden></p>
+    <button id="reconnect" class="secondary" hidden>Reconnect</button>
+  </main>
+  <footer><span>AN ENCOUNTER BY<br><strong>LAILA JHANÉ &amp; IVAN REYES</strong></span><span>ONLY IN<br><strong>ATLANTA.</strong></span></footer>
+  <script type="module" src="/photo.js"></script>
+</body>
+</html>
