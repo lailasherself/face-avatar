@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Ship keepsake — phone test</title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#0a121e;color:#fff;margin:0;padding:18px;text-align:center}
+    h1{font-size:20px;color:#9fd388}
+    .btn{display:inline-block;background:#9fd388;color:#0a121e;font-weight:700;padding:14px 20px;border-radius:10px;margin:10px;font-size:18px}
+    input[type=file]{display:none}
+    img{max-width:100%;border-radius:8px;margin-top:12px}
+    pre{text-align:left;background:#071019;color:#8fd;padding:10px;border-radius:8px;white-space:pre-wrap;font-size:13px;overflow:auto}
+  </style>
+</head>
+<body>
+  <h1>Spaceship keepsake — phone test</h1>
+  <p>Tap below, take a selfie (or pick a photo). Your phone will build the full-quality ship keepsake locally.</p>
+  <label class="btn" for="pick">Take / choose a photo</label>
+  <input type="file" id="pick" accept="image/*" capture="user">
+  <div id="status"></div>
+  <img id="out" alt="">
+  <pre id="log"></pre>
+  <script type="module">
+    import {createShipKeepsake} from './photo-keepsake.js';
+    const log=m=>{document.getElementById('log').textContent+=m+'\n';};
+    const status=m=>{document.getElementById('status').textContent=m;};
+    log('UA: '+navigator.userAgent);
+    log('crossOriginIsolated: '+self.crossOriginIsolated+'  (needed for the background remover)');
+    document.getElementById('pick').addEventListener('change',async e=>{
+      const file=e.target.files&&e.target.files[0];
+      if(!file)return;
+      status('Composing your spaceship… (first one is slower)');
+      log('input: '+file.type+' '+(file.size/1024|0)+' KB');
+      const t=performance.now();
+      try{
+        const keepsake=await createShipKeepsake(file,'Orbit');
+        const ms=Math.round(performance.now()-t);
+        log('SUCCESS in '+ms+' ms, keepsake '+(keepsake.size/1024|0)+' KB, type '+keepsake.type);
+        document.getElementById('out').src=URL.createObjectURL(keepsake);
+        status('✅ Full-quality spaceship composed on your phone in '+ms+' ms');
+      }catch(err){
+        log('ERROR: '+(err&&err.message||err));
+        status('❌ Failed on this phone: '+(err&&err.message||err));
+      }
+    });
+  </script>
+</body>
+</html>

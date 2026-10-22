@@ -26,7 +26,7 @@ export function validateAssetHeader(path, header) {
 }
 
 export function previewFiles(source = root) {
-  const files = new Set(['cockpit.html', ...manifests]);
+  const files = new Set(['cockpit.html', 'photo.html', 'photo-qr.html', 'ship-phone-test.html', 'assets/references/ufo1-vinyl.jpg', ...manifests]);
   for (const entry of readdirSync(source, {withFileTypes: true})) {
     if (entry.isFile() && /\.(js|css)$/.test(entry.name)) files.add(entry.name);
   }
@@ -39,7 +39,8 @@ export function previewFiles(source = root) {
     }
   }
   // Runtime libraries only; vendor's top-level GLBs are legacy authoring iterations.
-  for (const directory of ['three', 'mediapipe', 'onnxruntime', 'tongue', 'rapier', 'one-euro', 'lucide', 'fonts']) {
+  includeDirectory('assets/photo-vinyl');
+  for (const directory of ['three', 'mediapipe', 'onnxruntime', 'tongue', 'rapier', 'one-euro', 'lucide', 'fonts', 'qrcode']) {
     includeDirectory(`vendor/${directory}`);
   }
   for (const path of manifests) {
@@ -76,6 +77,9 @@ export function buildPreview(source = root) {
     mkdirSync(dirname(join(output, path)), {recursive: true});
     copyFileSync(join(source, path), join(output, path));
   }
+  mkdirSync(join(output,'icons'),{recursive:true});
+  for(const name of ['camera','download','rotate-ccw','x','check','arrow-right'])copyFileSync(join(source,`vendor/lucide/${name}.svg`),join(output,`icons/${name}.svg`));
+  copyFileSync(join(source,'assets/likeness-trials/thumbnails/cosmic.png'),join(output,'alien.png'));
   return {files: files.length, bytes};
 }
 
